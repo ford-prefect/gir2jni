@@ -37,7 +37,7 @@ parseOptions = Opts
            <*> strOption
                ( long "output"
               <> short 'O'
-              <> value "-"
+              <> value "."
               <> metavar "DIR"
               <> help "Output path for generated Java and C code" )
            <*> switch
