@@ -22,13 +22,13 @@ parseOptions = Opts
               <> short 'n'
               <> metavar "GIR"
               <> help "GIR package name to generate bindigs for" ) )
-           <*> option (str >>= return . Just . T.pack)
+           <*> option (Just . T.pack <$> str)
                ( long "gir-version"
               <> short 'V'
               <> metavar "VER"
               <> value Nothing
               <> help "GIR package version to use" )
-           <*> option (str >>= return . Just)
+           <*> option (Just <$> str)
                ( long "gir-override"
               <> short 'o'
               <> metavar "OV"
@@ -50,7 +50,7 @@ run :: Opts -> IO ()
 run opts = do
   ovsFile   <- case optOverrides opts of
                  Nothing -> return []
-                 Just f  -> T.lines <$> (TIO.readFile f)
+                 Just f  -> T.lines <$> TIO.readFile f
   -- Parsing an empty file seems to work, but if not, we should use mempty
   ovsParsed <- parseOverridesFile ovsFile
   let ovs = case ovsParsed of
