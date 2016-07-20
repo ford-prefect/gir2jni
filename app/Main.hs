@@ -1,12 +1,15 @@
 module Main where
 
-import Lib
+import Data.GI.CodeGen.JNI
 
-import qualified Data.Text as T (Text, lines, pack, unpack)
+import Data.Foldable (traverse_)
+import qualified Data.Text as T (Text, lines, pack, unpack, toLower)
 import qualified Data.Text.IO as TIO (readFile)
+import Data.Tuple (swap)
 import Options.Applicative
+import System.FilePath ((</>), (<.>))
 
-import Data.GI.CodeGen.API (loadGIRInfo)
+import Data.GI.CodeGen.API (girNSName, loadGIRInfo)
 import Data.GI.CodeGen.Overrides (Overrides, filterAPIsAndDeps, girFixups, parseOverridesFile)
 
 data Opts = Opts { optGIRName    :: T.Text
@@ -57,8 +60,14 @@ run opts = do
               Left err -> error ("Error parsing overrides file: " `mappend` T.unpack err)
               Right o  -> o
   (gir, girDeps) <- loadGIRInfo (optVerbose opts) (optGIRName opts) (optGIRVersion opts) [] (girFixups ovs)
-  let (apis, deps) = filterAPIsAndDeps ovs gir girDeps
-  return ()
+  let (apis, deps)    = filterAPIsAndDeps ovs gir girDeps
+      (jFiles, cFile) = genJNI ["org", "freedesktop"] apis deps
+      jPath           = (optOutputDir opts) </> "java"
+      cPath           = (optOutputDir opts) </> "jni"
+      cName           = (T.unpack . T.toLower . girNSName $ gir) <.> "c"
+      outJFiles       = map (fmap ((</>) jPath)) jFiles
+  traverse_ (uncurry writeFile . swap) outJFiles
+  writeFile (cPath </> cName) cFile
 
 main :: IO ()
 main = execParser opts >>= run
