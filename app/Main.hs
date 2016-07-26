@@ -2,12 +2,14 @@ module Main where
 
 import Data.GI.CodeGen.JNI
 
+import qualified Data.Map as M (mapKeys)
 import Data.Foldable (traverse_)
 import qualified Data.Text as T (Text, lines, pack, unpack, toLower)
 import qualified Data.Text.IO as TIO (readFile)
 import Data.Tuple (swap)
 import Options.Applicative
-import System.FilePath ((</>), (<.>))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), (<.>), takeDirectory)
 
 import Data.GI.CodeGen.API (girNSName, loadGIRInfo)
 import Data.GI.CodeGen.Overrides (Overrides, filterAPIsAndDeps, girFixups, parseOverridesFile)
@@ -65,7 +67,9 @@ run opts = do
       jPath           = (optOutputDir opts) </> "java"
       cPath           = (optOutputDir opts) </> "jni"
       cName           = (T.unpack . T.toLower . girNSName $ gir) <.> "c"
-      outJFiles       = map (fmap ((</>) jPath)) jFiles
+      outJFiles       = map (fmap (jPath </>)) jFiles
+  createDirectoryIfMissing True cPath
+  traverse_ (createDirectoryIfMissing True . takeDirectory . snd) outJFiles
   traverse_ (uncurry writeFile . swap) outJFiles
   writeFile (cPath </> cName) cFile
 
