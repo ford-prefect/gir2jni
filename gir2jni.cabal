@@ -16,8 +16,14 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Data.GI.CodeGen.JNI
+  other-modules:       Data.GI.CodeGen.JNI.Types
+                     , Data.GI.CodeGen.JNI.Utils
   build-depends:       base >= 4.7 && < 5
                      , containers
+                     , text
+                     , filepath
+                     , language-java
+                     , language-c
                      , haskell-gi
   default-language:    Haskell2010
 

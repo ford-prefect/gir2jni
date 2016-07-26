@@ -34,3 +34,6 @@
       - As a Java class representing the opaque structure
     - Callback.java
       - As a Java interface with an onCallback function
+
+* Unsigned types are promoted to the next wider Java type, except long which we
+  can't do much about
