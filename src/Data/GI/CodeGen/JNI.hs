@@ -29,7 +29,7 @@ genFunctionDecl packagePrefix giName (GI.APIFunction func) =
       GI.Callable{..} = GI.fnCallable func
       prefix          = JSyn.Ident <$> packagePrefix
       retType         = giTypeToJava prefix <$> returnType
-      id              = JSyn.Ident . T.unpack . GI.name $ giName
+      id              = JSyn.Ident . T.unpack . toCamelCase . GI.name $ giName
       params          = giArgToJava prefix <$> args
       body            = MethodBody Nothing
     in

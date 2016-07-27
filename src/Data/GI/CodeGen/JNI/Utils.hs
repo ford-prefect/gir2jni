@@ -1,7 +1,8 @@
 module Data.GI.CodeGen.JNI.Utils where
 
 import Data.Char as C (toLower)
-import Data.Text as T (toLower, unpack)
+import Data.Text as T (Text, toLower, unpack)
+import Data.Text.Manipulate as TManip (toCamel)
 import System.FilePath ((</>), (<.>))
 
 import Data.GI.CodeGen.API as GI
@@ -64,3 +65,7 @@ giArgToJava prefix giArg =
 nameToFilePath :: Package -> String -> String -> FilePath
 nameToFilePath package namespace cls =
   foldl1 (</>) (package ++ [C.toLower <$> namespace, cls <.> "java"])
+
+-- This one uses Text instead of String since that's what GI and text-manipulate are using
+toCamelCase :: T.Text -> T.Text
+toCamelCase = TManip.toCamel
