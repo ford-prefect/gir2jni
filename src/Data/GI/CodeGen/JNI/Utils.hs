@@ -98,15 +98,13 @@ giNameToJNI packagePrefix giName =
 
 giTypeToJNI :: Package -> Maybe GIType.Type -> a -> CSyn.CTypeSpecifier a
 giTypeToJNI prefix giType =
-  giTypeToJNI'
+  case giType of
+  Nothing                      -> CVoidType
+  (Just (GIType.TBasicType t)) -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ t)
+  -- FIXME
+  -- (GIType.TInterface cls ref) -> undefined
+  _                            -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ GIType.TLong)
   where
-    giTypeToJNI' =
-      case giType of
-        Nothing                      -> CVoidType
-        (Just (GIType.TBasicType t)) -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ t)
-        -- FIXME
-        -- (GIType.TInterface cls ref) -> undefined
-        _                            -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ GIType.TLong)
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
       (JSyn.PrimType JSyn.BooleanT) -> "jboolean"
       (JSyn.PrimType JSyn.ByteT   ) -> "jbyte"
