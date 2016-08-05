@@ -40,20 +40,12 @@ genFunctionCDecl packagePrefix giName GI.Callable{..} =
     ns    = T.unpack . GI.namespace $ giName
     name  = giNameToJNI packagePrefix giName
     id    = Just . CIdent.internalIdent $ name
-    cargs = jniEnvDecl node : jniClassDecl node : (giArgToC packagePrefix node <$> args)
+    cargs = jniEnvDecl : jniClassDecl : (giArgToJNI packagePrefix <$> args) <*> [node]
     ddecl = CSyn.CFunDeclr (Right (cargs, False)) [] node
     decl  = CSyn.CDeclr id [ddecl] Nothing [] node
     defn  = CSyn.CCompound [] [] node
   in
     CSyn.CFDefExt $ CSyn.CFunDef [ret] decl [] defn node
-  where
-    giArgToC packagePrefix a GI.Arg{..} =
-      let
-        typ  = CSyn.CTypeSpec $ giTypeToJNI packagePrefix (Just argType) a
-        id   = CIdent.internalIdent . T.unpack $ argCName
-        decl = CSyn.CDeclr (Just id) [] Nothing [] a
-      in
-        CSyn.CDecl [typ] [(Just decl, Nothing, Nothing)] a
 
 genFunctionDecl :: Package -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CSyn.CExtDecl)
 genFunctionDecl packagePrefix giName (GI.APIFunction func) =

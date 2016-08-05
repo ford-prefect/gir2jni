@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Data.GI.CodeGen.JNI.Utils where
 
 import Data.Char as C (toLower)
@@ -114,6 +116,15 @@ giTypeToJNI prefix giType =
       (JSyn.PrimType JSyn.FloatT  ) -> "jfloat"
       (JSyn.PrimType JSyn.DoubleT ) -> "jdouble"
       javaStringType                -> "jstring"
+
+giArgToJNI :: Package -> GI.Arg -> a -> CSyn.CDeclaration a
+giArgToJNI packagePrefix GI.Arg{..} a =
+  let
+    typ  = CSyn.CTypeSpec $ giTypeToJNI packagePrefix (Just argType) a
+    id   = CIdent.internalIdent . T.unpack $ argCName
+    decl = CSyn.CDeclr (Just id) [] Nothing [] a
+  in
+    CSyn.CDecl [typ] [(Just decl, Nothing, Nothing)] a
 
 -- This one uses Text instead of String since that's what GI and text-manipulate are using
 toCamelCase :: T.Text -> T.Text
