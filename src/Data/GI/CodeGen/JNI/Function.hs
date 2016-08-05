@@ -32,15 +32,19 @@ genFunctionJavaDecl packagePrefix giName GI.Callable{..} =
   in
     JSyn.MemberDecl (JSyn.MethodDecl mods [] retType id params [] body)
 
+genFunctionCArgs :: [GI.Arg] -> [a -> CSyn.CDeclaration a]
+genFunctionCArgs args =
+  jniEnvDecl : jniClassDecl : (giArgToJNI <$> args)
+
 genFunctionCDecl :: Package -> GI.Name -> GI.Callable -> CSyn.CExtDecl
 genFunctionCDecl packagePrefix giName GI.Callable{..} =
   let
     node  = CNode.undefNode
-    ret   = CSyn.CTypeSpec $ giTypeToJNI packagePrefix returnType node
+    ret   = CSyn.CTypeSpec $ giTypeToJNI returnType node
     ns    = T.unpack . GI.namespace $ giName
     name  = giNameToJNI packagePrefix giName
     id    = Just . CIdent.internalIdent $ name
-    cargs = jniEnvDecl : jniClassDecl : (giArgToJNI packagePrefix <$> args) <*> [node]
+    cargs = fmap ($ node) $ genFunctionCArgs args
     ddecl = CSyn.CFunDeclr (Right (cargs, False)) [] node
     decl  = CSyn.CDeclr id [ddecl] Nothing [] node
     defn  = CSyn.CCompound [] [] node

@@ -97,8 +97,8 @@ giNameToJNI packagePrefix giName =
                   ++ giNamespaceToJava packagePrefix giName
                   ++ [T.unpack . GI.namespace $ giName, giNameToJava giName]
 
-giTypeToJNI :: Package -> Maybe GIType.Type -> a -> CSyn.CTypeSpecifier a
-giTypeToJNI prefix giType =
+giTypeToJNI :: Maybe GIType.Type -> a -> CSyn.CTypeSpecifier a
+giTypeToJNI giType =
   case giType of
   Nothing                      -> CVoidType
   (Just (GIType.TBasicType t)) -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ t)
@@ -116,10 +116,10 @@ giTypeToJNI prefix giType =
       (JSyn.PrimType JSyn.DoubleT ) -> "jdouble"
       javaStringType                -> "jstring"
 
-giArgToJNI :: Package -> GI.Arg -> a -> CSyn.CDeclaration a
-giArgToJNI packagePrefix GI.Arg{..} a =
+giArgToJNI :: GI.Arg -> a -> CSyn.CDeclaration a
+giArgToJNI GI.Arg{..} a =
   let
-    typ  = CSyn.CTypeSpec $ giTypeToJNI packagePrefix (Just argType) a
+    typ  = CSyn.CTypeSpec $ giTypeToJNI (Just argType) a
     id   = CIdent.internalIdent . T.unpack $ argCName
     decl = CSyn.CDeclr (Just id) [] Nothing [] a
   in
