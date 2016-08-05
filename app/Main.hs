@@ -59,13 +59,13 @@ run opts = do
   -- Parsing an empty file seems to work, but if not, we should use mempty
   ovsParsed <- parseOverridesFile ovsFile
   let ovs = case ovsParsed of
-              Left err -> error ("Error parsing overrides file: " `mappend` T.unpack err)
+              Left err -> error ("Error parsing overrides file: " <> T.unpack err)
               Right o  -> o
   (gir, girDeps) <- loadGIRInfo (optVerbose opts) (optGIRName opts) (optGIRVersion opts) [] (girFixups ovs)
   let (apis, deps)    = filterAPIsAndDeps ovs gir girDeps
       (jFiles, cFile) = genJNI ["org", "freedesktop"] apis deps
-      jPath           = (optOutputDir opts) </> "java"
-      cPath           = (optOutputDir opts) </> "jni"
+      jPath           = optOutputDir opts </> "java"
+      cPath           = optOutputDir opts </> "jni"
       cName           = (T.unpack . T.toLower . girNSName $ gir) <.> "c"
       outJFiles       = map (fmap (jPath </>)) jFiles
   createDirectoryIfMissing True cPath

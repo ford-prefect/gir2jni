@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections   #-}
 
 module Data.GI.CodeGen.JNI.Utils where
 
@@ -19,7 +20,7 @@ import Language.C.Data.Ident as CIdent
 import Data.GI.CodeGen.JNI.Types
 
 javaClassRef :: [JSyn.Ident] -> JSyn.Type
-javaClassRef = JSyn.RefType . JSyn.ClassRefType . JSyn.ClassType . fmap (\id -> (id, []))
+javaClassRef = JSyn.RefType . JSyn.ClassRefType . JSyn.ClassType . fmap (,[])
 
 javaStringType :: JSyn.Type
 javaStringType = javaClassRef . fmap JSyn.Ident $ ["java", "lang", "String"]
