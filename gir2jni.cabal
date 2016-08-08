@@ -24,6 +24,7 @@ library
                      , text
                      , text-manipulate
                      , filepath
+                     , pretty
                      , language-java
                      , language-c
                      , haskell-gi

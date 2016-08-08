@@ -4,6 +4,7 @@ module Data.GI.CodeGen.JNI
     ) where
 
 import qualified Data.Map as M
+import Text.PrettyPrint as TPretty
 import Data.Tuple (swap)
 import System.FilePath ((</>), (<.>))
 
@@ -12,8 +13,9 @@ import Data.GI.CodeGen.API as GI
 import Language.Java.Syntax as JSyn
 import Language.Java.Pretty as JPretty
 
-import Language.C.Pretty as CPretty
+import Language.C.Data.Node as CNode (undefNode)
 import Language.C.Syntax as CSyn
+import Language.C.Pretty as CPretty
 
 import Data.GI.CodeGen.JNI.Types
 import Data.GI.CodeGen.JNI.Function (genFunctions)
@@ -26,7 +28,8 @@ genJNI packagePrefix apis deps =
     (jFun, cFun) = genFunctions packagePrefix (M.union apis deps)
     jPathFun     = M.mapKeys makePath jFun
     javaCode     = map swap . M.toList . M.map JPretty.prettyPrint $ jPathFun
-    cCode        = concat $ show . CPretty.pretty <$> cFun -- FIXME (generate a CTranslationUnit)
+    -- FIXME: Need headers
+    cCode        = TPretty.render . CPretty.pretty . CSyn.CTranslUnit cFun $ CNode.undefNode
   in
     (javaCode, cCode)
   where
