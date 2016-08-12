@@ -119,9 +119,9 @@ giTypeToJNI giType =
 giArgToJNI :: GI.Arg -> a -> CSyn.CDeclaration a
 giArgToJNI GI.Arg{..} a =
   let
-    typ  = CSyn.CTypeSpec $ giTypeToJNI (Just argType) a
-    id   = CIdent.internalIdent . T.unpack $ argCName
-    decl = CSyn.CDeclr (Just id) [] Nothing [] a
+    typ   = CSyn.CTypeSpec $ giTypeToJNI (Just argType) a
+    ident = CIdent.internalIdent . T.unpack $ argCName
+    decl  = CSyn.CDeclr (Just ident) [] Nothing [] a
   in
     CSyn.CDecl [typ] [(Just decl, Nothing, Nothing)] a
 
