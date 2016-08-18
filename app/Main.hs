@@ -2,7 +2,7 @@ module Main where
 
 import Data.GI.CodeGen.JNI
 
-import qualified Data.Map as M (mapKeys)
+import qualified Data.Map as M (empty, mapKeys)
 import Data.Foldable (traverse_)
 import qualified Data.Text as T (Text, lines, pack, unpack, toLower)
 import qualified Data.Text.IO as TIO (readFile)
@@ -63,7 +63,8 @@ run opts = do
               Right o  -> o
   (gir, girDeps) <- loadGIRInfo (optVerbose opts) (optGIRName opts) (optGIRVersion opts) [] (girFixups ovs)
   let (apis, deps)    = filterAPIsAndDeps ovs gir girDeps
-      (jFiles, cFile) = genJNI ["org", "freedesktop"] apis deps
+      info            = Info ["org", "freedesktop"] apis deps M.empty
+      (jFiles, cFile) = genJNI info
       jPath           = optOutputDir opts </> "java"
       cPath           = optOutputDir opts </> "jni"
       cName           = (T.unpack . T.toLower . girNSName $ gir) <.> "c"

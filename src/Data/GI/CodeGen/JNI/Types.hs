@@ -1,5 +1,8 @@
 module Data.GI.CodeGen.JNI.Types where
 
+import qualified Data.Map as M
+import qualified Data.Text as T
+
 import Data.GI.CodeGen.API as GI
 import Language.Java.Syntax as JSyn
 import Language.C.Syntax as CSyn
@@ -12,3 +15,10 @@ type Class = String
 
 -- | Fully qualified class consisting of the package and class name
 type FQClass = (Package, Class)
+
+-- | Information used during generation, based on Data.GI.CodeGen.API.GIRInfo
+data Info = Info {
+  infoPkgPrefix :: Package,              -- ^ Top level Java package prefix
+  infoAPI       :: M.Map GI.Name GI.API, -- ^ The main API
+  infoDeps      :: M.Map GI.Name GI.API  -- ^ The dependent APIs
+}
