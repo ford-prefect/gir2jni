@@ -20,5 +20,6 @@ type FQClass = (Package, Class)
 data Info = Info {
   infoPkgPrefix :: Package,              -- ^ Top level Java package prefix
   infoAPI       :: M.Map GI.Name GI.API, -- ^ The main API
-  infoDeps      :: M.Map GI.Name GI.API  -- ^ The dependent APIs
+  infoDeps      :: M.Map GI.Name GI.API, -- ^ The dependent APIs
+  infoCTypes    :: M.Map GI.Name T.Text  -- ^ A map from GI types to the corresponding C type
 }
