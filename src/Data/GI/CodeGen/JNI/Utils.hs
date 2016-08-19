@@ -3,19 +3,19 @@
 
 module Data.GI.CodeGen.JNI.Utils where
 
-import Data.Char as C (toLower)
+import qualified Data.Char as C (toLower)
 import Data.List (intercalate)
-import Data.Text as T (Text, toLower, unpack)
-import Data.Text.Manipulate as TManip (toCamel)
+import qualified Data.Text as T (Text, toLower, unpack)
+import qualified Data.Text.Manipulate as TManip (toCamel)
 
-import Data.GI.CodeGen.API as GI
-import Data.GI.CodeGen.Type as GIType
+import qualified Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.Type as GIType
 
-import Language.Java.Syntax as JSyn
-import Language.Java.Pretty as JPretty
+import qualified Language.Java.Syntax as JSyn
+import qualified Language.Java.Pretty as JPretty
 
-import Language.C.Syntax as CSyn
-import Language.C.Data.Ident as CIdent
+import qualified Language.C.Syntax as CSyn
+import qualified Language.C.Data.Ident as CIdent
 
 import Data.GI.CodeGen.JNI.Types
 
@@ -100,7 +100,7 @@ giNameToJNI packagePrefix giName =
 giTypeToJNI :: Maybe GIType.Type -> a -> CSyn.CTypeSpecifier a
 giTypeToJNI giType =
   case giType of
-  Nothing                      -> CVoidType
+  Nothing                      -> CSyn.CVoidType
   (Just (GIType.TBasicType t)) -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ t)
   -- FIXME
   -- (GIType.TInterface cls ref) -> undefined

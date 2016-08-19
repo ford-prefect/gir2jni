@@ -3,9 +3,9 @@ module Data.GI.CodeGen.JNI.Types where
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Data.GI.CodeGen.API as GI
-import Language.Java.Syntax as JSyn
-import Language.C.Syntax as CSyn
+import qualified Data.GI.CodeGen.API as GI
+import qualified Language.Java.Syntax as JSyn
+import qualified Language.C.Syntax as CSyn
 
 -- | Lists component of the package (like ["org", "freedesktop"])
 type Package = [String]

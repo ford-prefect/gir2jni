@@ -7,18 +7,18 @@ module Data.GI.CodeGen.JNI
     ) where
 
 import qualified Data.Map as M
-import Text.PrettyPrint as TPretty
 import Data.Tuple (swap)
 import System.FilePath ((</>), (<.>))
+import qualified Text.PrettyPrint as TPretty
 
-import Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.API as GI
 
-import Language.Java.Syntax as JSyn
-import Language.Java.Pretty as JPretty
+import qualified Language.Java.Syntax as JSyn
+import qualified Language.Java.Pretty as JPretty
 
-import Language.C.Data.Node as CNode (undefNode)
-import Language.C.Syntax as CSyn
-import Language.C.Pretty as CPretty
+import qualified Language.C.Data.Node as CNode (undefNode)
+import qualified Language.C.Syntax as CSyn
+import qualified Language.C.Pretty as CPretty
 
 import Data.GI.CodeGen.JNI.Types
 import Data.GI.CodeGen.JNI.Function (genFunctions)

@@ -5,17 +5,17 @@ module Data.GI.CodeGen.JNI.Function where
 import Data.Char (toLower)
 import qualified Data.Map as M
 import Data.Maybe (isNothing, maybeToList)
-import Data.Text as T (unpack)
+import qualified Data.Text as T (unpack)
 
-import Language.Java.Syntax as JSyn
-import Language.Java.Pretty as JPretty
+import qualified Language.Java.Syntax as JSyn
+import qualified Language.Java.Pretty as JPretty
 
-import Language.C.Data.Ident as CIdent
-import Language.C.Data.Node as CNode (undefNode)
-import Language.C.Pretty as CPretty
-import Language.C.Syntax as CSyn
+import qualified Language.C.Data.Ident as CIdent
+import qualified Language.C.Data.Node as CNode (undefNode)
+import qualified Language.C.Pretty as CPretty
+import qualified Language.C.Syntax as CSyn
 
-import Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.API as GI
 
 import Data.GI.CodeGen.JNI.Utils
 import Data.GI.CodeGen.JNI.Types
@@ -28,7 +28,7 @@ genFunctionJavaDecl packagePrefix giName GI.Callable{..} =
     retType = giTypeToJava prefix <$> returnType
     ident   = JSyn.Ident . giNameToJava $ giName
     params  = giArgToJava prefix <$> args
-    body    = MethodBody Nothing
+    body    = JSyn.MethodBody Nothing
   in
     JSyn.MemberDecl (JSyn.MethodDecl mods [] retType ident params [] body)
 
