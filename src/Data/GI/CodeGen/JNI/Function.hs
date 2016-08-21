@@ -5,15 +5,13 @@ module Data.GI.CodeGen.JNI.Function where
 import Data.Char (toLower)
 import qualified Data.Map as M
 import Data.Maybe (isNothing, maybeToList)
+import Data.String (fromString)
 import qualified Data.Text as T (unpack)
 
 import qualified Language.Java.Syntax as JSyn
 import qualified Language.Java.Pretty as JPretty
 
-import qualified Language.C.Data.Ident as CIdent
-import qualified Language.C.Data.Node as CNode (undefNode)
-import qualified Language.C.Pretty as CPretty
-import qualified Language.C.Syntax as CSyn
+import qualified Language.C.DSL as CDSL
 
 import qualified Data.GI.CodeGen.API as GI
 
@@ -32,26 +30,20 @@ genFunctionJavaDecl packagePrefix giName GI.Callable{..} =
   in
     JSyn.MemberDecl (JSyn.MethodDecl mods [] retType ident params [] body)
 
-genFunctionCArgs :: [GI.Arg] -> [a -> CSyn.CDeclaration a]
+genFunctionCArgs :: [GI.Arg] -> [Maybe CDSL.CExpr -> CDSL.CDecl]
 genFunctionCArgs args =
   jniEnvDecl : jniClassDecl : (giArgToJNI <$> args)
 
-genFunctionCDecl :: Package -> GI.Name -> GI.Callable -> CSyn.CExtDecl
+genFunctionCDecl :: Package -> GI.Name -> GI.Callable -> CDSL.CExtDecl
 genFunctionCDecl packagePrefix giName GI.Callable{..} =
   let
-    node  = CNode.undefNode
-    ret   = CSyn.CTypeSpec $ giTypeToJNI returnType node
-    ns    = T.unpack . GI.namespace $ giName
-    name  = giNameToJNI packagePrefix giName
-    ident = Just . CIdent.internalIdent $ name
-    cargs = ($ node) <$> genFunctionCArgs args
-    ddecl = CSyn.CFunDeclr (Right (cargs, False)) [] node
-    decl  = CSyn.CDeclr ident [ddecl] Nothing [] node
-    defn  = CSyn.CCompound [] [] node
+    retType = CDSL.CTypeSpec . giTypeToJNI $ returnType
+    name    = giNameToJNI packagePrefix giName
+    cargs   = genFunctionCArgs args
   in
-    CSyn.CFDefExt $ CSyn.CFunDef [ret] decl [] defn node
+    CDSL.export $ CDSL.fun [retType] name cargs $ CDSL.block []
 
-genFunctionDecl :: Package -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CSyn.CExtDecl)
+genFunctionDecl :: Package -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
 genFunctionDecl packagePrefix giName (GI.APIFunction func) =
   if isNothing . GI.fnMovedTo $ func
   then
@@ -72,7 +64,7 @@ genFunctionJava packageStr nsStr methods =
   in
     JSyn.CompilationUnit package [] [cls]
 
-genFunctions :: Package -> M.Map GI.Name GI.API -> (M.Map FQClass JSyn.CompilationUnit, [CSyn.CExtDecl])
+genFunctions :: Package -> M.Map GI.Name GI.API -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genFunctions packagePrefix apis =
   let
     declsMaybe = M.mapWithKey (genFunctionDecl packagePrefix) apis -- Map GI.Name   Maybe (JDecl, CDecl)

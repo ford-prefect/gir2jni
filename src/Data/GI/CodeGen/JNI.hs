@@ -16,9 +16,7 @@ import qualified Data.GI.CodeGen.API as GI
 import qualified Language.Java.Syntax as JSyn
 import qualified Language.Java.Pretty as JPretty
 
-import qualified Language.C.Data.Node as CNode (undefNode)
-import qualified Language.C.Syntax as CSyn
-import qualified Language.C.Pretty as CPretty
+import qualified Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
 import Data.GI.CodeGen.JNI.Function (genFunctions)
@@ -32,7 +30,7 @@ genJNI Info{..} =
     jPathFun     = M.mapKeys makePath jFun
     javaCode     = map swap . M.toList . M.map JPretty.prettyPrint $ jPathFun
     -- FIXME: Need headers
-    cCode        = TPretty.render . CPretty.pretty . CSyn.CTranslUnit cFun $ CNode.undefNode
+    cCode        = TPretty.render . CDSL.pretty . CDSL.transUnit $ cFun
   in
     (javaCode, cCode)
   where

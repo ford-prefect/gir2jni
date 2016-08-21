@@ -5,6 +5,7 @@ module Data.GI.CodeGen.JNI.Utils where
 
 import qualified Data.Char as C (toLower)
 import Data.List (intercalate)
+import Data.String (fromString)
 import qualified Data.Text as T (Text, toLower, unpack)
 import qualified Data.Text.Manipulate as TManip (toCamel)
 
@@ -14,8 +15,7 @@ import qualified Data.GI.CodeGen.Type as GIType
 import qualified Language.Java.Syntax as JSyn
 import qualified Language.Java.Pretty as JPretty
 
-import qualified Language.C.Syntax as CSyn
-import qualified Language.C.Data.Ident as CIdent
+import qualified Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
 
@@ -25,19 +25,19 @@ javaClassRef = JSyn.RefType . JSyn.ClassRefType . JSyn.ClassType . fmap (,[])
 javaStringType :: JSyn.Type
 javaStringType = javaClassRef . fmap JSyn.Ident $ ["java", "lang", "String"]
 
-jniTypeDefDecl :: String -> String -> Bool -> a -> CSyn.CDeclaration a
-jniTypeDefDecl typ ident isPtr a =
+jniTypeDefDecl :: String -> String -> Bool -> Maybe CDSL.CExpr -> CDSL.CDecl
+jniTypeDefDecl typ name isPtr =
   let
-     typeSpec = CSyn.CTypeSpec . CSyn.CTypeDef (CIdent.internalIdent typ) $ a
-     ddecl    = [CSyn.CPtrDeclr [] a | isPtr]
-     decl     = CSyn.CDeclr (Just . CIdent.internalIdent $ ident) ddecl Nothing [] a
+     typeSpec = CDSL.CTypeSpec . CDSL.ty . fromString $ typ
+     doPtr    = if isPtr then CDSL.ptr else id
+     ident    = doPtr . fromString $ name
   in
-    CSyn.CDecl [typeSpec] [(Just decl, Nothing, Nothing)] a
+    CDSL.decl typeSpec ident
 
-jniEnvDecl :: a -> CSyn.CDeclaration a
+jniEnvDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
 jniEnvDecl = jniTypeDefDecl "JNIEnv" "env" True
 
-jniClassDecl :: a -> CSyn.CDeclaration a
+jniClassDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
 jniClassDecl = jniTypeDefDecl "jclass" "clazz" False
 
 -- Java doesn't have unsigned types, so we promote all unsigned types to
@@ -97,14 +97,14 @@ giNameToJNI packagePrefix giName =
                   ++ giNamespaceToJava packagePrefix giName
                   ++ [T.unpack . GI.namespace $ giName, giNameToJava giName]
 
-giTypeToJNI :: Maybe GIType.Type -> a -> CSyn.CTypeSpecifier a
+giTypeToJNI :: Maybe GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =
   case giType of
-  Nothing                      -> CSyn.CVoidType
-  (Just (GIType.TBasicType t)) -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ t)
+  Nothing                      -> CDSL.voidSpec
+  (Just (GIType.TBasicType t)) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
   -- FIXME
   -- (GIType.TInterface cls ref) -> undefined
-  _                            -> CSyn.CTypeDef (CIdent.internalIdent . giBasicTypeToJNI $ GIType.TLong)
+  _                            -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
   where
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
       (JSyn.PrimType JSyn.BooleanT) -> "jboolean"
@@ -116,14 +116,13 @@ giTypeToJNI giType =
       (JSyn.PrimType JSyn.DoubleT ) -> "jdouble"
       javaStringType                -> "jstring"
 
-giArgToJNI :: GI.Arg -> a -> CSyn.CDeclaration a
-giArgToJNI GI.Arg{..} a =
+giArgToJNI :: GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
+giArgToJNI GI.Arg{..} =
   let
-    typ   = CSyn.CTypeSpec $ giTypeToJNI (Just argType) a
-    ident = CIdent.internalIdent . T.unpack $ argCName
-    decl  = CSyn.CDeclr (Just ident) [] Nothing [] a
+    typ  = CDSL.CTypeSpec . giTypeToJNI . Just $ argType
+    name = fromString . T.unpack $ argCName
   in
-    CSyn.CDecl [typ] [(Just decl, Nothing, Nothing)] a
+    CDSL.decl typ name
 
 -- This one uses Text instead of String since that's what GI and text-manipulate are using
 toCamelCase :: T.Text -> T.Text
