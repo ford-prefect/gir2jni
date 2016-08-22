@@ -100,11 +100,11 @@ giNameToJNI packagePrefix giName =
 giTypeToJNI :: Maybe GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =
   case giType of
-  Nothing                      -> CDSL.voidSpec
-  (Just (GIType.TBasicType t)) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
-  -- FIXME
-  -- (GIType.TInterface cls ref) -> undefined
-  _                            -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
+    Nothing                      -> CDSL.voidSpec
+    (Just (GIType.TBasicType t)) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
+    -- FIXME
+    -- (GIType.TInterface cls ref) -> undefined
+    _                            -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
   where
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
       (JSyn.PrimType JSyn.BooleanT) -> "jboolean"
