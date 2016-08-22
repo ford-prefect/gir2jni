@@ -37,6 +37,10 @@ resolver: lts-6.6
 # will not be run. This is useful for tweaking upstream packages.
 packages:
 - '.'
+- location:
+    hg: https://bitbucket.org/jozefg/c-dsl
+    commit: a1f60673d5661c7813ee59a758438053e796858b
+  extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps: []
