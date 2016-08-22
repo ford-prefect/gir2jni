@@ -64,10 +64,10 @@ genFunctionJava packageStr nsStr methods =
   in
     JSyn.CompilationUnit package [] [cls]
 
-genFunctions :: Package -> M.Map GI.Name GI.API -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
-genFunctions packagePrefix apis =
+genFunctions :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
+genFunctions info@Info{..} =
   let
-    declsMaybe = M.mapWithKey (genFunctionDecl packagePrefix) apis -- Map GI.Name   Maybe (JDecl, CDecl)
+    declsMaybe = M.mapWithKey (genFunctionDecl infoPkgPrefix) infoAPI   -- Map GI.Name   Maybe (JDecl, CDecl)
     declsList  = M.map maybeToList declsMaybe                      -- Map GI.Name   [(JDecl, CDecl)]
     decls      = M.mapKeysWith (++) makePackagePair declsList      -- Map (pkg, ns) [(JDecl, CDecl)]
     jdecls     = fmap fst <$> decls
@@ -77,4 +77,4 @@ genFunctions packagePrefix apis =
   in
     (jcode, ccode)
   where
-    makePackagePair ns = (giNamespaceToJava packagePrefix ns, T.unpack . GI.namespace $ ns)
+    makePackagePair ns = (giNamespaceToJava infoPkgPrefix ns, T.unpack . GI.namespace $ ns)

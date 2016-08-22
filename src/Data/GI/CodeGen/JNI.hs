@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Data.GI.CodeGen.JNI
     ( genJNI
     , Package
@@ -24,9 +22,9 @@ import Data.GI.CodeGen.JNI.Function (genFunctions)
 -- | Returns a list of Java files with their names, and the C code to be written
 --   to a single file
 genJNI :: Info -> ([(String, FilePath)], String)
-genJNI Info{..} =
+genJNI info =
   let
-    (jFun, cFun) = genFunctions infoPkgPrefix (M.union infoAPI infoDeps)
+    (jFun, cFun) = genFunctions info
     jPathFun     = M.mapKeys makePath jFun
     javaCode     = map swap . M.toList . M.map JPretty.prettyPrint $ jPathFun
     -- FIXME: Need headers
