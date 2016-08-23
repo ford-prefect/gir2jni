@@ -1,19 +1,22 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.GI.CodeGen.JNI.Function where
 
 import Data.Char (toLower)
 import qualified Data.Map as M
-import Data.Maybe (isNothing, maybeToList)
+import Data.Maybe (catMaybes, isNothing, maybeToList)
 import Data.String (fromString)
-import qualified Data.Text as T (unpack)
+import qualified Data.Text as T (Text, unpack)
 
 import qualified Language.Java.Syntax as JSyn
 import qualified Language.Java.Pretty as JPretty
 
-import qualified Language.C.DSL as CDSL
+-- The idea is to use this qualified everywhere except when using as a DSL
+import Language.C.DSL as CDSL
 
 import qualified Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.Type as GIType
 
 import Data.GI.CodeGen.JNI.Utils
 import Data.GI.CodeGen.JNI.Types
@@ -34,24 +37,124 @@ genFunctionCArgs :: [GI.Arg] -> [Maybe CDSL.CExpr -> CDSL.CDecl]
 genFunctionCArgs args =
   jniEnvDecl : jniClassDecl : (giArgToJNI <$> args)
 
-genFunctionCDecl :: Package -> GI.Name -> GI.Callable -> CDSL.CExtDecl
-genFunctionCDecl packagePrefix giName GI.Callable{..} =
-  let
-    retType = CDSL.CTypeSpec . giTypeToJNI $ returnType
-    name    = giNameToJNI packagePrefix giName
-    cargs   = genFunctionCArgs args
-  in
-    CDSL.export $ CDSL.fun [retType] name cargs $ CDSL.block []
+genReturnCIdent :: String
+genReturnCIdent = giCVarPrefix ++ "ret"
 
-genFunctionDecl :: Package -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
-genFunctionDecl packagePrefix giName (GI.APIFunction func) =
+-- `empty` distinguishes between the declaration case (True) and the case
+-- where we use genArgCDecl for creating a declaration for a castTo.
+genArgCDecl :: Info -> Bool -> GI.Arg -> CDSL.CDecl
+genArgCDecl Info{..} empty arg@GI.Arg{..} =
+  let
+    (typ, isPtr) = giTypeToC infoCTypes argType
+    ident        = if empty
+                   then emptyDecl
+                   else fromString . giArgToCIdent $ arg
+  in
+    makeTypeDecl isPtr ident typ
+
+genReturnCDecl :: Info -> GIType.Type -> CDSL.CDecl
+genReturnCDecl Info{..} giType =
+  let
+    (typ, isPtr) = giTypeToC infoCTypes giType
+    ident        = fromString genReturnCIdent
+  in
+    makeTypeDecl isPtr ident typ
+
+genArgCInitAndCleanup :: Info -> GI.Arg -> (CDSL.CStat, Maybe CDSL.CStat)
+genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
+  let
+    prefix = JSyn.Ident <$> infoPkgPrefix
+    jniEnv = fromString jniEnvArg
+    jniArg = fromString . giArgToJNIIdent $ arg
+    cVar   = fromString . giArgToCIdent $ arg
+    cType  = genArgCDecl info True arg
+    -- FIXME: Do we need to deal with ownership transfer here?
+    init   =
+      if giTypeToJava prefix argType == javaStringType
+        then
+          cifElse (jniArg /=: 0)
+            (hBlock [
+              cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
+              -- FIXME: Do an exception check and return if we have an exception
+            ])
+            (hBlock [
+              cVar <-- 0
+            ])
+        else
+          liftE $
+            cVar <-- (jniArg `castTo` cType)
+    -- FIXME: Do we need to deal with ownership transfer here?
+    cleanup =
+      if giTypeToJava prefix argType == javaStringType
+        then
+          Just $ cif (jniArg /=: 0)
+            (hBlock [
+              (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, cVar]
+            ])
+        else
+          Nothing
+  in
+    (init, cleanup)
+
+genFunctionCCall :: GI.Function -> CDSL.CStat
+genFunctionCCall GI.Function{..} =
+  let
+    fn   = fromString . T.unpack $ fnSymbol
+    args = fromString . giArgToCIdent <$> GI.args fnCallable
+    ret  = fromString genReturnCIdent
+  in
+    if isNothing . GI.returnType $ fnCallable
+    then
+      liftE $ fn # args
+    else
+      liftE $ ret <-- fn # args
+
+genFunctionCReturn :: Info -> Maybe GIType.Type -> CStat
+genFunctionCReturn Info{..} giType =
+  let
+    ident   = fromString genReturnCIdent
+    retType = giTypeToJNI giType
+    retCast = makeTypeDecl False emptyDecl retType
+  in
+    if isNothing giType
+    then
+      cvoidReturn
+    else
+      creturn $ ident `castTo` retCast
+
+genFunctionCDefn :: Info -> GI.Function -> [CDSL.CBlockItem]
+genFunctionCDefn info@Info{..} func@GI.Function{..} =
+  let
+    retDecl = maybeToList $ genReturnCDecl info <$> GI.returnType fnCallable
+    decls   = genArgCDecl info False <$> GI.args fnCallable
+    ic      = genArgCInitAndCleanup info <$> GI.args fnCallable
+    init    = fst <$> ic
+    cleanup = catMaybes $ snd <$> ic
+    call    = [genFunctionCCall func]
+    ret     = [genFunctionCReturn info . GI.returnType $ fnCallable]
+  in
+    (CDSL.intoB <$> retDecl ++ decls) ++
+    (CDSL.intoB <$> init ++ call ++ cleanup ++ ret)
+
+genFunctionCDecl :: Info -> GI.Name -> GI.Function -> CDSL.CExtDecl
+genFunctionCDecl info@Info{..} giName func@GI.Function{..} =
+  let
+    retType = CDSL.CTypeSpec . giTypeToJNI . GI.returnType $ fnCallable
+    name    = giNameToJNI infoPkgPrefix giName
+    cargs   = genFunctionCArgs . GI.args $ fnCallable
+    defn    = genFunctionCDefn info func
+  in
+    export $ fun [retType] name cargs $ block defn
+
+genFunctionDecl :: Info -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
+genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
   if isNothing . GI.fnMovedTo $ func
   then
-    Just (genFunctionJavaDecl packagePrefix giName (GI.fnCallable func),
-          genFunctionCDecl    packagePrefix giName (GI.fnCallable func))
+    Just (genFunctionJavaDecl infoPkgPrefix giName (GI.fnCallable func),
+          genFunctionCDecl info giName func)
   else
     Nothing -- FIXME: Generate a Java class for these
-genFunctionDecl packagePrefix giName _                     = Nothing -- Ignore non-functions
+genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
 
 -- | Generate the Java code for the given package, namespace, methods
 genFunctionJava :: Package -> String -> [JSyn.Decl] -> JSyn.CompilationUnit
@@ -67,12 +170,12 @@ genFunctionJava packageStr nsStr methods =
 genFunctions :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genFunctions info@Info{..} =
   let
-    declsMaybe = M.mapWithKey (genFunctionDecl infoPkgPrefix) infoAPI   -- Map GI.Name   Maybe (JDecl, CDecl)
-    declsList  = M.map maybeToList declsMaybe                      -- Map GI.Name   [(JDecl, CDecl)]
-    decls      = M.mapKeysWith (++) makePackagePair declsList      -- Map (pkg, ns) [(JDecl, CDecl)]
+    declsMaybe = M.mapWithKey (genFunctionDecl info) infoAPI   -- Map GI.Name   Maybe (JDecl, CDecl)
+    declsList  = M.map maybeToList declsMaybe                  -- Map GI.Name   [(JDecl, CDecl)]
+    decls      = M.mapKeysWith (++) makePackagePair declsList  -- Map (pkg, ns) [(JDecl, CDecl)]
     jdecls     = fmap fst <$> decls
     cdecls     = fmap snd <$> decls
-    jcode      = M.mapWithKey (uncurry genFunctionJava) jdecls     -- Map (pkg, ns) JCompilationUnit
+    jcode      = M.mapWithKey (uncurry genFunctionJava) jdecls -- Map (pkg, ns) JCompilationUnit
     ccode      = concat cdecls
   in
     (jcode, ccode)

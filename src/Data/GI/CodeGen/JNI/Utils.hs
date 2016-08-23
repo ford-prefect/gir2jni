@@ -5,6 +5,7 @@ module Data.GI.CodeGen.JNI.Utils where
 
 import qualified Data.Char as C (toLower)
 import Data.List (intercalate)
+import qualified Data.Map as M (Map, lookup)
 import Data.String (fromString)
 import qualified Data.Text as T (Text, toLower, unpack)
 import qualified Data.Text.Manipulate as TManip (toCamel)
@@ -15,7 +16,8 @@ import qualified Data.GI.CodeGen.Type as GIType
 import qualified Language.Java.Syntax as JSyn
 import qualified Language.Java.Pretty as JPretty
 
-import qualified Language.C.DSL as CDSL
+-- The idea is to use this qualified everywhere except when using as a DSL
+import Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
 
@@ -34,8 +36,31 @@ jniTypeDefDecl typ name isPtr =
   in
     CDSL.decl typeSpec ident
 
+emptyDecl :: CDSL.CDeclr
+emptyDecl = CDSL.CDeclr Nothing [] Nothing [] CDSL.undefNode
+
+makeTypeDecl :: Bool -> CDSL.CDeclr -> CDSL.CTypeSpec -> CDSL.CDecl
+makeTypeDecl isPtr ident typ =
+  let
+    maybePtr = if isPtr then ptr else id
+  in
+    decl (CDSL.CTypeSpec typ) (maybePtr ident) Nothing
+
+typeDecl :: CDSL.CTypeSpec -> CDSL.CDecl
+typeDecl = makeTypeDecl False emptyDecl
+
+typePtrDecl :: CDSL.CTypeSpec -> CDSL.CDecl
+typePtrDecl = makeTypeDecl True emptyDecl
+
+jniNull :: CDSL.CExpr
+jniNull =
+    0 `castTo` typePtrDecl voidSpec
+
+jniEnvArg :: String
+jniEnvArg = "env"
+
 jniEnvDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniEnvDecl = jniTypeDefDecl "JNIEnv" "env" True
+jniEnvDecl = jniTypeDefDecl "JNIEnv" jniEnvArg True
 
 jniClassDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
 jniClassDecl = jniTypeDefDecl "jclass" "clazz" False
@@ -85,6 +110,12 @@ giArgToJava prefix giArg =
   in
     JSyn.FormalParam [] typ False var
 
+giCVarPrefix :: String
+giCVarPrefix = "c_"
+
+giArgToCIdent :: GI.Arg -> String
+giArgToCIdent GI.Arg{..} = giCVarPrefix ++ T.unpack argCName
+
 giNamespaceToJava :: Package -> GI.Name -> Package
 giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
 
@@ -116,11 +147,55 @@ giTypeToJNI giType =
       (JSyn.PrimType JSyn.DoubleT ) -> "jdouble"
       javaStringType                -> "jstring"
 
+giTypeToC :: M.Map GI.Name T.Text -> GIType.Type -> (CDSL.CTypeSpec, Bool)
+giTypeToC cTypes giType =
+  let typ   = case giType of
+                GIType.TBasicType t       -> CDSL.ty . fromString . giBasicTypeToC $ t
+                GIType.TInterface cls ref -> CDSL.ty . fromString $ doLookup cTypes (GI.Name cls ref)
+                -- FIXME: Deal with other types
+                _                         -> CDSL.longSpec
+      isPtr = case giType of
+                (GIType.TBasicType GIType.TUTF8) -> True
+                (GIType.TInterface _ _         ) -> True
+                _                                -> False
+  in
+    (typ, isPtr)
+  where
+    giBasicTypeToC typ = case typ of
+      GIType.TBoolean  -> "gboolean"
+      GIType.TInt      -> "gint"
+      GIType.TUInt     -> "guint"
+      GIType.TLong     -> "glong"
+      GIType.TULong    -> "gulong"
+      GIType.TInt8     -> "gint8"
+      GIType.TUInt8    -> "guint8"
+      GIType.TInt16    -> "gint16"
+      GIType.TUInt16   -> "guint16"
+      GIType.TInt32    -> "gint32"
+      GIType.TUInt32   -> "guint32"
+      GIType.TInt64    -> "gint64"
+      GIType.TUInt64   -> "guint64"
+      GIType.TFloat    -> "gfloat"
+      GIType.TDouble   -> "gdouble"
+      GIType.TUniChar  -> "guinchar"
+      GIType.TGType    -> "GType"
+      GIType.TPtr      -> "gpointr"
+      GIType.TIntPtr   -> "gintptr"
+      GIType.TUIntPtr  -> "guintptr"
+      GIType.TUTF8     -> "char"
+      GIType.TFileName -> "char"
+    doLookup cTypes name = case M.lookup name cTypes of
+      Nothing -> error $ "Don't know C type for GI type: " ++ show name
+      Just t  -> T.unpack t
+
+giArgToJNIIdent :: GI.Arg -> String
+giArgToJNIIdent GI.Arg{..} = T.unpack argCName
+
 giArgToJNI :: GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
-giArgToJNI GI.Arg{..} =
+giArgToJNI arg@GI.Arg{..} =
   let
     typ  = CDSL.CTypeSpec . giTypeToJNI . Just $ argType
-    name = fromString . T.unpack $ argCName
+    name = fromString . giArgToJNIIdent $ arg
   in
     CDSL.decl typ name
 
