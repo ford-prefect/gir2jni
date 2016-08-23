@@ -27,8 +27,10 @@ genJNI info =
     (jFun, cFun) = genFunctions info
     jPathFun     = M.mapKeys makePath jFun
     javaCode     = map swap . M.toList . M.map JPretty.prettyPrint $ jPathFun
-    -- FIXME: Need headers
-    cCode        = TPretty.render . CDSL.pretty . CDSL.transUnit $ cFun
+    headerList   = ["jni.h", "gst/gst.h"] -- FIXME: Discover headers from GIR
+    headers      = concatMap (\h -> "#include <" ++ h ++ ">\n") headerList
+    cCode        = headers ++
+                   (TPretty.render . CDSL.pretty . CDSL.transUnit $ cFun)
   in
     (javaCode, cCode)
   where
