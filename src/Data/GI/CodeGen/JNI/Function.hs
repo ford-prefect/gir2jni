@@ -162,20 +162,42 @@ genFunctionCCall GI.Function{..} =
   in
     call : handleErr
 
-genFunctionCReturn :: Info -> Maybe GIType.Type -> [CStat]
-genFunctionCReturn Info{..} giType =
+genFunctionCReturn :: Info -> GI.Callable -> [CStat]
+genFunctionCReturn Info{..} GI.Callable{..} =
   let
-    cIdent    = fromString genReturnCIdent
-    jIdent    = fromString genReturnJNIIdent
-    retCast t = makeTypeDecl False emptyDecl (giTypeToJNI t)
+    cIdent = fromString genReturnCIdent
+    jIdent = fromString genReturnJNIIdent
   in
-    case giType of
+    case returnType of
       Nothing -> [cvoidReturn]
-      Just t  -> [
-                   -- FIXME: Can't just do a simple assign every time
-                   liftE $ jIdent <-- cIdent `castTo` retCast t,
-                   creturn jIdent
-                 ]
+      Just t  -> (genFunctionCToJNI t cIdent jIdent) :
+                 [creturn jIdent]
+  where
+    retCast t =
+      makeTypeDecl False emptyDecl (giTypeToJNI t)
+
+    genFunctionCToJNI typ cVar jVar =
+      let
+        prefix = JSyn.Ident <$> infoPkgPrefix
+        jniEnv = fromString jniEnvArg
+      in
+        if giTypeToJava prefix typ == javaStringType
+        then
+          cifElse cVar
+            (hBlock $
+              (jVar <-- (star jniEnv &* "NewStringUTF") # [jniEnv, cVar]) :
+              if returnTransfer /= GI.TransferEverything
+              then
+                ["g_free" # [cVar]]
+              else
+                []
+            )
+            (hBlock [
+              jVar <-- 0
+            ])
+          else
+            -- FIXME: Can't just do a simple assign every time
+            liftE $ jVar <-- cVar `castTo` retCast typ
 
 genFunctionCDefn :: Info -> GI.Function -> [CDSL.CBlockItem]
 genFunctionCDefn info@Info{..} func@GI.Function{..} =
@@ -188,7 +210,7 @@ genFunctionCDefn info@Info{..} func@GI.Function{..} =
     init    = (fst <$> ic) ++ maybeToList errInit
     cleanup = catMaybes $ snd <$> ic
     call    = genFunctionCCall func
-    ret     = genFunctionCReturn info . GI.returnType $ fnCallable
+    ret     = genFunctionCReturn info fnCallable
   in
     (CDSL.intoB <$> retDecl ++ decls ++ errDecl) ++
     (CDSL.intoB <$> init ++ call ++ cleanup ++ ret)
