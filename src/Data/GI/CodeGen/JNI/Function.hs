@@ -38,7 +38,7 @@ genFunctionCArgs args =
   jniEnvDecl : jniClassDecl : (giArgToJNI <$> args)
 
 genReturnCIdent :: String
-genReturnCIdent = giCVarPrefix ++ "ret"
+genReturnCIdent = giCVarPrefix ++ "_ret"
 
 -- `empty` distinguishes between the declaration case (True) and the case
 -- where we use genArgCDecl for creating a declaration for a castTo.
