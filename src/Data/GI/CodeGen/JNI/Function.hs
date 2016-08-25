@@ -100,6 +100,7 @@ genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
           cifElse (jniArg /=: 0)
             (hBlock [
               cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
+              -- FIXME: Do an ownership test and dup string if needed
               -- FIXME: Do an exception check and return if we have an exception
             ])
             (hBlock [
@@ -114,7 +115,7 @@ genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
         then
           Just $ cif (jniArg /=: 0)
             (hBlock [
-              (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, cVar]
+              (star jniEnv &* "ReleaseStringUTFChars")#[jniEnv, jniArg, cVar]
             ])
         else
           Nothing
