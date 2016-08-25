@@ -179,7 +179,7 @@ giTypeToC cTypes giType =
       GIType.TDouble   -> "gdouble"
       GIType.TUniChar  -> "guinchar"
       GIType.TGType    -> "GType"
-      GIType.TPtr      -> "gpointr"
+      GIType.TPtr      -> "gpointer"
       GIType.TIntPtr   -> "gintptr"
       GIType.TUIntPtr  -> "guintptr"
       GIType.TUTF8     -> "char"
