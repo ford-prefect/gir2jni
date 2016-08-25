@@ -1,5 +1,6 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.GI.CodeGen.JNI.Utils where
 
@@ -147,7 +148,7 @@ giTypeToJNI giType =
       javaStringType                -> "jstring"
 
 giTypeToC :: Info -> GIType.Type -> (CDSL.CTypeSpec, Bool)
-giTypeToC Info{..} giType =
+giTypeToC info@Info{..} giType =
   let typ   = case giType of
                 GIType.TBasicType t       -> CDSL.ty . fromString . giBasicTypeToC $ t
                 GIType.TInterface cls ref -> CDSL.ty . fromString $ doLookup (GI.Name cls ref)
@@ -158,7 +159,9 @@ giTypeToC Info{..} giType =
                 (GIType.TInterface cls ref     ) -> isInterfacePtrType cls ref
                 _                                -> False
   in
-    (typ, isPtr)
+    case giType of
+      GIType.TError -> giTypeToC info (GIType.TInterface "GLib" "Error")
+      _             -> (typ, isPtr)
   where
     doLookup name = case M.lookup name infoCTypes of
       Nothing -> error $ "Don't know C type for GI type: " ++ show name

@@ -40,6 +40,9 @@ genFunctionCArgs args =
 genReturnCIdent :: String
 genReturnCIdent = giCVarPrefix ++ "_ret"
 
+genErrorCIdent :: String
+genErrorCIdent = giCVarPrefix ++ "err"
+
 -- `empty` distinguishes between the declaration case (True) and the case
 -- where we use genArgCDecl for creating a declaration for a castTo.
 genArgCDecl :: Info -> Bool -> GI.Arg -> CDSL.CDecl
@@ -59,6 +62,18 @@ genReturnCDecl info giType =
     ident        = fromString genReturnCIdent
   in
     makeTypeDecl isPtr ident typ
+
+genErrorCDecl :: Info -> GI.Function -> Maybe CDSL.CDecl
+genErrorCDecl info GI.Function{..} =
+  let
+    ident        = fromString genErrorCIdent
+    (typ, isPtr) = giTypeToC info GIType.TError
+  in
+    if fnThrows
+    then
+      Just $ makeTypeDecl isPtr ident typ
+    else
+      Nothing
 
 genArgCInitAndCleanup :: Info -> GI.Arg -> (CDSL.CStat, Maybe CDSL.CStat)
 genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
@@ -96,18 +111,46 @@ genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
   in
     (init, cleanup)
 
-genFunctionCCall :: GI.Function -> CDSL.CStat
+genErrorCInit :: GI.Function -> Maybe CDSL.CStat
+genErrorCInit GI.Function{..} =
+  let
+    err = fromString genErrorCIdent 
+  in
+    if fnThrows
+    then
+      Just . liftE $ err <-- 0
+    else
+      Nothing
+
+genFunctionCCall :: GI.Function -> [CDSL.CStat]
 genFunctionCCall GI.Function{..} =
   let
-    fn   = fromString . T.unpack $ fnSymbol
-    args = fromString . giArgToCIdent <$> GI.args fnCallable
-    ret  = fromString genReturnCIdent
+    fn        = fromString . T.unpack $ fnSymbol
+    err       = fromString genErrorCIdent
+    errArg    = if fnThrows
+                then
+                  Just $ Addr `pre` err
+                else
+                  Nothing
+    args      = (fromString . giArgToCIdent <$> GI.args fnCallable) ++ maybeToList errArg
+    ret       = fromString genReturnCIdent
+    call      = if isNothing . GI.returnType $ fnCallable
+                  then
+                    liftE $ fn # args
+                  else
+                    liftE $ ret <-- fn # args
+    handleErr = if fnThrows
+                then
+                  [
+                    cif err $ hBlock [
+                      -- FIXME: log the error
+                      "g_error_free"#[err]
+                    ]
+                  ]
+                else
+                  []
   in
-    if isNothing . GI.returnType $ fnCallable
-    then
-      liftE $ fn # args
-    else
-      liftE $ ret <-- fn # args
+    call : handleErr
 
 genFunctionCReturn :: Info -> Maybe GIType.Type -> CStat
 genFunctionCReturn Info{..} giType =
@@ -127,13 +170,15 @@ genFunctionCDefn info@Info{..} func@GI.Function{..} =
   let
     retDecl = maybeToList $ genReturnCDecl info <$> GI.returnType fnCallable
     decls   = genArgCDecl info False <$> GI.args fnCallable
+    errDecl = maybeToList $ genErrorCDecl info func
     ic      = genArgCInitAndCleanup info <$> GI.args fnCallable
-    init    = fst <$> ic
+    errInit = genErrorCInit func
+    init    = (fst <$> ic) ++ maybeToList errInit
     cleanup = catMaybes $ snd <$> ic
-    call    = [genFunctionCCall func]
+    call    = genFunctionCCall func
     ret     = [genFunctionCReturn info . GI.returnType $ fnCallable]
   in
-    (CDSL.intoB <$> retDecl ++ decls) ++
+    (CDSL.intoB <$> retDecl ++ decls ++ errDecl) ++
     (CDSL.intoB <$> init ++ call ++ cleanup ++ ret)
 
 genFunctionCDecl :: Info -> GI.Name -> GI.Function -> CDSL.CExtDecl
