@@ -129,13 +129,12 @@ giNameToJNI packagePrefix giName =
                   ++ giNamespaceToJava packagePrefix giName
                   ++ [T.unpack . GI.namespace $ giName, giNameToJava giName]
 
-giTypeToJNI :: Maybe GIType.Type -> CDSL.CTypeSpec
+giTypeToJNI :: GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =
   case giType of
-    Nothing                      -> CDSL.voidSpec
-    (Just (GIType.TBasicType t)) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
+    (GIType.TBasicType t) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
     -- FIXME: all the other ttypes
-    _                            -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
+    _                     -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
   where
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
       (JSyn.PrimType JSyn.BooleanT) -> "jboolean"
@@ -211,7 +210,7 @@ giArgToJNIIdent GI.Arg{..} = T.unpack argCName
 giArgToJNI :: GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
 giArgToJNI arg@GI.Arg{..} =
   let
-    typ  = CDSL.CTypeSpec . giTypeToJNI . Just $ argType
+    typ  = CDSL.CTypeSpec . giTypeToJNI $ argType
     name = fromString . giArgToJNIIdent $ arg
   in
     CDSL.decl typ name

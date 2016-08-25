@@ -40,6 +40,9 @@ genFunctionCArgs args =
 genReturnCIdent :: String
 genReturnCIdent = giCVarPrefix ++ "_ret"
 
+genReturnJNIIdent :: String
+genReturnJNIIdent = "j_ret"
+
 genErrorCIdent :: String
 genErrorCIdent = giCVarPrefix ++ "err"
 
@@ -55,13 +58,20 @@ genArgCDecl info empty arg@GI.Arg{..} =
   in
     makeTypeDecl isPtr ident typ
 
-genReturnCDecl :: Info -> GIType.Type -> CDSL.CDecl
+genReturnCDecl :: Info -> Maybe GIType.Type -> [CDSL.CDecl]
 genReturnCDecl info giType =
-  let
-    (typ, isPtr) = giTypeToC info giType
-    ident        = fromString genReturnCIdent
-  in
-    makeTypeDecl isPtr ident typ
+  case giType of
+    Nothing -> []
+    Just t  -> genReturnCDecl' info t
+  where
+    genReturnCDecl' info t =
+      let
+        (cType, isPtr) = giTypeToC info t
+        jType          = giTypeToJNI t
+        cIdent         = fromString genReturnCIdent
+        jIdent         = fromString genReturnJNIIdent
+      in
+        [makeTypeDecl isPtr cIdent cType, makeTypeDecl False jIdent jType]
 
 genErrorCDecl :: Info -> GI.Function -> Maybe CDSL.CDecl
 genErrorCDecl info GI.Function{..} =
@@ -152,23 +162,25 @@ genFunctionCCall GI.Function{..} =
   in
     call : handleErr
 
-genFunctionCReturn :: Info -> Maybe GIType.Type -> CStat
+genFunctionCReturn :: Info -> Maybe GIType.Type -> [CStat]
 genFunctionCReturn Info{..} giType =
   let
-    ident   = fromString genReturnCIdent
-    retType = giTypeToJNI giType
-    retCast = makeTypeDecl False emptyDecl retType
+    cIdent    = fromString genReturnCIdent
+    jIdent    = fromString genReturnJNIIdent
+    retCast t = makeTypeDecl False emptyDecl (giTypeToJNI t)
   in
-    if isNothing giType
-    then
-      cvoidReturn
-    else
-      creturn $ ident `castTo` retCast
+    case giType of
+      Nothing -> [cvoidReturn]
+      Just t  -> [
+                   -- FIXME: Can't just do a simple assign every time
+                   liftE $ jIdent <-- cIdent `castTo` retCast t,
+                   creturn jIdent
+                 ]
 
 genFunctionCDefn :: Info -> GI.Function -> [CDSL.CBlockItem]
 genFunctionCDefn info@Info{..} func@GI.Function{..} =
   let
-    retDecl = maybeToList $ genReturnCDecl info <$> GI.returnType fnCallable
+    retDecl = genReturnCDecl info . GI.returnType $ fnCallable
     decls   = genArgCDecl info False <$> GI.args fnCallable
     errDecl = maybeToList $ genErrorCDecl info func
     ic      = genArgCInitAndCleanup info <$> GI.args fnCallable
@@ -176,7 +188,7 @@ genFunctionCDefn info@Info{..} func@GI.Function{..} =
     init    = (fst <$> ic) ++ maybeToList errInit
     cleanup = catMaybes $ snd <$> ic
     call    = genFunctionCCall func
-    ret     = [genFunctionCReturn info . GI.returnType $ fnCallable]
+    ret     = genFunctionCReturn info . GI.returnType $ fnCallable
   in
     (CDSL.intoB <$> retDecl ++ decls ++ errDecl) ++
     (CDSL.intoB <$> init ++ call ++ cleanup ++ ret)
@@ -184,12 +196,15 @@ genFunctionCDefn info@Info{..} func@GI.Function{..} =
 genFunctionCDecl :: Info -> GI.Name -> GI.Function -> CDSL.CExtDecl
 genFunctionCDecl info@Info{..} giName func@GI.Function{..} =
   let
-    retType = CDSL.CTypeSpec . giTypeToJNI . GI.returnType $ fnCallable
+    retType  = GI.returnType fnCallable
+    retCType = case retType of
+                 Nothing  -> CDSL.voidTy
+                 Just typ -> CDSL.CTypeSpec . giTypeToJNI $ typ
     name    = giNameToJNI infoPkgPrefix giName
     cargs   = genFunctionCArgs . GI.args $ fnCallable
     defn    = genFunctionCDefn info func
   in
-    export $ fun [retType] name cargs $ block defn
+    export $ fun [retCType] name cargs $ block defn
 
 genFunctionDecl :: Info -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
 genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
