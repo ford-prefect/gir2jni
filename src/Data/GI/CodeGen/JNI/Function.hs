@@ -148,12 +148,19 @@ genFunctionCDecl info@Info{..} giName func@GI.Function{..} =
 
 genFunctionDecl :: Info -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
 genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
-  if isNothing . GI.fnMovedTo $ func
+  if isValidFunction func
   then
     Just (genFunctionJavaDecl infoPkgPrefix giName (GI.fnCallable func),
           genFunctionCDecl info giName func)
   else
-    Nothing -- FIXME: Generate a Java class for these
+    Nothing
+  where
+    isValidFunction GI.Function{..} =
+      -- FIXME: how do we deal with each of these cases?
+      isNothing fnMovedTo &&                      -- function moved?
+      (all (not . isOutArg) $ GI.args fnCallable) -- out argument(s)
+    isOutArg GI.Arg{..} =
+      direction /= GI.DirectionIn
 genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
 
 -- | Generate the Java code for the given package, namespace, methods
