@@ -3,6 +3,7 @@
 
 module Data.GI.CodeGen.JNI.Utils where
 
+import Control.Applicative ((<|>))
 import qualified Data.Char as C (toLower)
 import Data.List (intercalate)
 import qualified Data.Map as M (Map, lookup)
@@ -145,20 +146,38 @@ giTypeToJNI giType =
       (JSyn.PrimType JSyn.DoubleT ) -> "jdouble"
       javaStringType                -> "jstring"
 
-giTypeToC :: M.Map GI.Name T.Text -> GIType.Type -> (CDSL.CTypeSpec, Bool)
-giTypeToC cTypes giType =
+giTypeToC :: Info -> GIType.Type -> (CDSL.CTypeSpec, Bool)
+giTypeToC Info{..} giType =
   let typ   = case giType of
                 GIType.TBasicType t       -> CDSL.ty . fromString . giBasicTypeToC $ t
-                GIType.TInterface cls ref -> CDSL.ty . fromString $ doLookup cTypes (GI.Name cls ref)
+                GIType.TInterface cls ref -> CDSL.ty . fromString $ doLookup (GI.Name cls ref)
                 -- FIXME: Deal with other types
                 _                         -> CDSL.longSpec
       isPtr = case giType of
                 (GIType.TBasicType GIType.TUTF8) -> True
-                (GIType.TInterface _ _         ) -> True
+                (GIType.TInterface cls ref     ) -> isInterfacePtrType cls ref
                 _                                -> False
   in
     (typ, isPtr)
   where
+    doLookup name = case M.lookup name infoCTypes of
+      Nothing -> error $ "Don't know C type for GI type: " ++ show name
+      Just t  -> T.unpack t
+
+    isInterfacePtrType cls ref =
+      let
+        name = GI.Name cls ref
+        api  = M.lookup name infoAPI <|> M.lookup name infoDeps
+      in
+        case api of
+          Nothing -> error $ "Unknown type reference: " ++ show name
+          Just t  -> case t of
+            GI.APIInterface _ -> True
+            GI.APIObject    _ -> True
+            GI.APIStruct    _ -> True
+            GI.APIUnion     _ -> True
+            _                 -> False
+
     giBasicTypeToC typ = case typ of
       GIType.TBoolean  -> "gboolean"
       GIType.TInt      -> "gint"
@@ -182,9 +201,6 @@ giTypeToC cTypes giType =
       GIType.TUIntPtr  -> "guintptr"
       GIType.TUTF8     -> "char"
       GIType.TFileName -> "char"
-    doLookup cTypes name = case M.lookup name cTypes of
-      Nothing -> error $ "Don't know C type for GI type: " ++ show name
-      Just t  -> T.unpack t
 
 giArgToJNIIdent :: GI.Arg -> String
 giArgToJNIIdent GI.Arg{..} = T.unpack argCName

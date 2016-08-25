@@ -43,9 +43,9 @@ genReturnCIdent = giCVarPrefix ++ "ret"
 -- `empty` distinguishes between the declaration case (True) and the case
 -- where we use genArgCDecl for creating a declaration for a castTo.
 genArgCDecl :: Info -> Bool -> GI.Arg -> CDSL.CDecl
-genArgCDecl Info{..} empty arg@GI.Arg{..} =
+genArgCDecl info empty arg@GI.Arg{..} =
   let
-    (typ, isPtr) = giTypeToC infoCTypes argType
+    (typ, isPtr) = giTypeToC info argType
     ident        = if empty
                    then emptyDecl
                    else fromString . giArgToCIdent $ arg
@@ -53,9 +53,9 @@ genArgCDecl Info{..} empty arg@GI.Arg{..} =
     makeTypeDecl isPtr ident typ
 
 genReturnCDecl :: Info -> GIType.Type -> CDSL.CDecl
-genReturnCDecl Info{..} giType =
+genReturnCDecl info giType =
   let
-    (typ, isPtr) = giTypeToC infoCTypes giType
+    (typ, isPtr) = giTypeToC info giType
     ident        = fromString genReturnCIdent
   in
     makeTypeDecl isPtr ident typ
