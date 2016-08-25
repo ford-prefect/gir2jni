@@ -205,7 +205,8 @@ genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
       isNothing fnMovedTo &&                      -- function moved?
       (all (not . isOutArg) $ GI.args fnCallable) -- out argument(s)
     isOutArg GI.Arg{..} =
-      direction /= GI.DirectionIn
+      -- FIXME: we ignore the out part of inout arguments
+      direction == GI.DirectionOut
 genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
 
 -- | Generate the Java code for the given package, namespace, methods
