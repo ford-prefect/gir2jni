@@ -99,7 +99,6 @@ giTypeToJava prefix giType =
   case giType of
     (GIType.TBasicType t)       -> giBasicTypeToJava t
     -- FIXME: Commenting out until we actually implement generation of classes for objects etc.
-    -- (GIType.TInterface cls ref) -> javaClassRef (prefix `mappend` (JSyn.Ident . T.unpack <$> [T.toLower cls, ref]))
     _                           -> JSyn.PrimType JSyn.LongT -- FIXME
 
 giArgToJava :: [JSyn.Ident] -> GI.Arg -> JSyn.FormalParam
@@ -133,8 +132,7 @@ giTypeToJNI giType =
   case giType of
     Nothing                      -> CDSL.voidSpec
     (Just (GIType.TBasicType t)) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
-    -- FIXME
-    -- (GIType.TInterface cls ref) -> undefined
+    -- FIXME: all the other ttypes
     _                            -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
   where
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
