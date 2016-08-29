@@ -93,14 +93,13 @@ genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
     jniArg = fromString . giArgToJNIIdent $ arg
     cVar   = fromString . giArgToCIdent $ arg
     cType  = genArgCDecl info True arg
-    -- FIXME: Do we need to deal with ownership transfer here?
+    -- FIXME: We need to deal with ownership transfer here
     init   =
       if giTypeToJava prefix argType == javaStringType
         then
           cifElse (jniArg /=: 0)
             (hBlock [
               cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
-              -- FIXME: Do an ownership test and dup string if needed
               -- FIXME: Do an exception check and return if we have an exception
             ])
             (hBlock [
