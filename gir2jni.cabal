@@ -17,7 +17,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.GI.CodeGen.JNI
   other-modules:       Data.GI.CodeGen.JNI.Types
-                     , Data.GI.CodeGen.JNI.Utils
+                     , Data.GI.CodeGen.JNI.Utils.Type
+                     , Data.GI.CodeGen.JNI.Utils.C
+                     , Data.GI.CodeGen.JNI.Utils.Java
                      , Data.GI.CodeGen.JNI.Function
   build-depends:       base >= 4.7 && < 5
                      , containers

@@ -1,16 +1,13 @@
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
-module Data.GI.CodeGen.JNI.Utils where
+module Data.GI.CodeGen.JNI.Utils.Type where
 
 import Control.Applicative ((<|>))
-import qualified Data.Char as C (toLower)
-import Data.List (intercalate)
-import qualified Data.Map as M (Map, lookup)
+import qualified Data.Map as M (lookup)
 import Data.String (fromString)
-import qualified Data.Text as T (Text, toLower, unpack)
-import qualified Data.Text.Manipulate as TManip (toCamel)
+import qualified Data.Text as T (unpack)
 
 import qualified Data.GI.CodeGen.API as GI
 import qualified Data.GI.CodeGen.Type as GIType
@@ -27,44 +24,6 @@ javaClassRef = JSyn.RefType . JSyn.ClassRefType . JSyn.ClassType . fmap (,[])
 
 javaStringType :: JSyn.Type
 javaStringType = javaClassRef . fmap JSyn.Ident $ ["java", "lang", "String"]
-
-jniTypeDefDecl :: String -> String -> Bool -> Maybe CDSL.CExpr -> CDSL.CDecl
-jniTypeDefDecl typ name isPtr =
-  let
-     typeSpec = CDSL.CTypeSpec . CDSL.ty . fromString $ typ
-     doPtr    = if isPtr then CDSL.ptr else id
-     ident    = doPtr . fromString $ name
-  in
-    CDSL.decl typeSpec ident
-
-emptyDecl :: CDSL.CDeclr
-emptyDecl = CDSL.CDeclr Nothing [] Nothing [] CDSL.undefNode
-
-makeTypeDecl :: Bool -> CDSL.CDeclr -> CDSL.CTypeSpec -> CDSL.CDecl
-makeTypeDecl isPtr ident typ =
-  let
-    maybePtr = if isPtr then ptr else id
-  in
-    decl (CDSL.CTypeSpec typ) (maybePtr ident) Nothing
-
-typeDecl :: CDSL.CTypeSpec -> CDSL.CDecl
-typeDecl = makeTypeDecl False emptyDecl
-
-typePtrDecl :: CDSL.CTypeSpec -> CDSL.CDecl
-typePtrDecl = makeTypeDecl True emptyDecl
-
-jniNull :: CDSL.CExpr
-jniNull =
-    0 `castTo` typePtrDecl voidSpec
-
-jniEnvArg :: String
-jniEnvArg = "env"
-
-jniEnvDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniEnvDecl = jniTypeDefDecl "JNIEnv" jniEnvArg True
-
-jniClassDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniClassDecl = jniTypeDefDecl "jclass" "clazz" False
 
 -- Java doesn't have unsigned types, so we promote all unsigned types to
 -- the next wider Java signed type (except long, where we just have to hope
@@ -101,32 +60,6 @@ giTypeToJava prefix giType =
     (GIType.TBasicType t)       -> giBasicTypeToJava t
     -- FIXME: Commenting out until we actually implement generation of classes for objects etc.
     _                           -> JSyn.PrimType JSyn.LongT -- FIXME
-
-giArgToJava :: [JSyn.Ident] -> GI.Arg -> JSyn.FormalParam
-giArgToJava prefix giArg =
-  let
-    var = JSyn.VarId . JSyn.Ident . T.unpack . GI.argCName $ giArg
-    typ = giTypeToJava prefix . GI.argType $ giArg
-  in
-    JSyn.FormalParam [] typ False var
-
-giCVarPrefix :: String
-giCVarPrefix = "c_"
-
-giArgToCIdent :: GI.Arg -> String
-giArgToCIdent GI.Arg{..} = giCVarPrefix ++ T.unpack argCName
-
-giNamespaceToJava :: Package -> GI.Name -> Package
-giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
-
-giNameToJava :: GI.Name -> String
-giNameToJava = T.unpack . toCamelCase . GI.name
-
-giNameToJNI :: Package -> GI.Name -> String
-giNameToJNI packagePrefix giName =
-  intercalate "_" $ ["Java"]
-                  ++ giNamespaceToJava packagePrefix giName
-                  ++ [T.unpack . GI.namespace $ giName, giNameToJava giName]
 
 giTypeToJNI :: GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =
@@ -202,18 +135,3 @@ giTypeToC info@Info{..} giType =
       GIType.TUIntPtr  -> "guintptr"
       GIType.TUTF8     -> "char"
       GIType.TFileName -> "char"
-
-giArgToJNIIdent :: GI.Arg -> String
-giArgToJNIIdent GI.Arg{..} = T.unpack argCName
-
-giArgToJNI :: GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
-giArgToJNI arg@GI.Arg{..} =
-  let
-    typ  = CDSL.CTypeSpec . giTypeToJNI $ argType
-    name = fromString . giArgToJNIIdent $ arg
-  in
-    CDSL.decl typ name
-
--- This one uses Text instead of String since that's what GI and text-manipulate are using
-toCamelCase :: T.Text -> T.Text
-toCamelCase = TManip.toCamel

@@ -18,7 +18,9 @@ import Language.C.DSL as CDSL
 import qualified Data.GI.CodeGen.API as GI
 import qualified Data.GI.CodeGen.Type as GIType
 
-import Data.GI.CodeGen.JNI.Utils
+import Data.GI.CodeGen.JNI.Utils.C
+import Data.GI.CodeGen.JNI.Utils.Java
+import Data.GI.CodeGen.JNI.Utils.Type
 import Data.GI.CodeGen.JNI.Types
 
 genFunctionJavaDecl :: Package -> GI.Name -> GI.Callable -> JSyn.Decl
@@ -53,7 +55,7 @@ genArgCDecl info empty arg@GI.Arg{..} =
   let
     (typ, isPtr) = giTypeToC info argType
     ident        = if empty
-                   then emptyDecl
+                   then emptyCDecl
                    else fromString . giArgToCIdent $ arg
   in
     makeTypeDecl isPtr ident typ
@@ -174,7 +176,7 @@ genFunctionCReturn Info{..} GI.Callable{..} =
                  [creturn jIdent]
   where
     retCast t =
-      makeTypeDecl False emptyDecl (giTypeToJNI t)
+      makeTypeDecl False emptyCDecl (giTypeToJNI t)
 
     genFunctionCToJNI typ cVar jVar =
       let
@@ -245,17 +247,6 @@ genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
       -- FIXME: we ignore the out part of inout arguments
       direction == GI.DirectionOut
 genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
-
--- | Generate the Java code for the given package, namespace, methods
-genFunctionJava :: Package -> String -> [JSyn.Decl] -> JSyn.CompilationUnit
-genFunctionJava packageStr nsStr methods =
-  let
-    package = Just . JSyn.PackageDecl . JSyn.Name $ (JSyn.Ident <$> packageStr)
-    ns      = JSyn.Ident nsStr
-    cls     = JSyn.ClassTypeDecl $ JSyn.ClassDecl [JSyn.Public] ns [] Nothing [] body
-    body    = JSyn.ClassBody methods
-  in
-    JSyn.CompilationUnit package [] [cls]
 
 genFunctions :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genFunctions info@Info{..} =
