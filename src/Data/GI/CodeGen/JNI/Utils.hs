@@ -16,7 +16,6 @@ import qualified Data.GI.CodeGen.API as GI
 import qualified Data.GI.CodeGen.Type as GIType
 
 import qualified Language.Java.Syntax as JSyn
-import qualified Language.Java.Pretty as JPretty
 
 -- The idea is to use this qualified everywhere except when using as a DSL
 import Language.C.DSL as CDSL
