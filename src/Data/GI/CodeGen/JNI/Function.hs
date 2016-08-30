@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.GI.CodeGen.JNI.Function where
+module Data.GI.CodeGen.JNI.Function (genFunctions) where
 
 import Data.Char (toLower)
 import qualified Data.Map as M
