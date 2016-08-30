@@ -251,4 +251,4 @@ genFunctions info@Info{..} =
     (jcode, ccode)
   where
     makePackagePair ns = (giNamespaceToJava infoPkgPrefix ns, T.unpack . GI.namespace $ ns)
-    genFunctionJava (pkg, ns) = genJavaClass pkg ns [JSyn.Public]
+    genFunctionJava (pkg, ns) = genJavaClass pkg ns [JSyn.Public] Nothing []
