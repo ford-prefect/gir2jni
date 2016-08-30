@@ -19,11 +19,14 @@ import Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
 
-javaClassRef :: [JSyn.Ident] -> JSyn.Type
-javaClassRef = JSyn.RefType . JSyn.ClassRefType . JSyn.ClassType . fmap (,[])
+javaClassRef :: [String] -> JSyn.RefType
+javaClassRef n = JSyn.ClassRefType . JSyn.ClassType . fmap (,[]) $ JSyn.Ident <$> n
 
 javaStringType :: JSyn.Type
-javaStringType = javaClassRef . fmap JSyn.Ident $ ["java", "lang", "String"]
+javaStringType = JSyn.RefType . javaClassRef $  ["java", "lang", "String"]
+
+javaFQToClassRef :: FQClass -> JSyn.RefType
+javaFQToClassRef (pkg, cls) = javaClassRef (pkg ++ [cls])
 
 -- Java doesn't have unsigned types, so we promote all unsigned types to
 -- the next wider Java signed type (except long, where we just have to hope
