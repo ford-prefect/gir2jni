@@ -30,12 +30,12 @@ giArgToJava prefix giArg =
     JSyn.FormalParam [] typ False var
 
 -- | Generate the Java code for the given package, namespace, methods
-genFunctionJava :: Package -> String -> [JSyn.Decl] -> JSyn.CompilationUnit
-genFunctionJava packageStr nsStr methods =
+genJavaClass :: Package -> String -> [JSyn.Modifier] -> [JSyn.Decl] -> JSyn.CompilationUnit
+genJavaClass packageStr name mods methods =
   let
     package = Just . JSyn.PackageDecl . JSyn.Name $ (JSyn.Ident <$> packageStr)
-    ns      = JSyn.Ident nsStr
-    cls     = JSyn.ClassTypeDecl $ JSyn.ClassDecl [JSyn.Public] ns [] Nothing [] body
+    ident   = JSyn.Ident name
+    cls     = JSyn.ClassTypeDecl $ JSyn.ClassDecl mods ident [] Nothing [] body
     body    = JSyn.ClassBody methods
   in
     JSyn.CompilationUnit package [] [cls]

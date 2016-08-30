@@ -240,14 +240,15 @@ genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
 genFunctions :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genFunctions info@Info{..} =
   let
-    declsMaybe = M.mapWithKey (genFunctionDecl info) infoAPI   -- Map GI.Name   Maybe (JDecl, CDecl)
-    declsList  = M.map maybeToList declsMaybe                  -- Map GI.Name   [(JDecl, CDecl)]
-    decls      = M.mapKeysWith (++) makePackagePair declsList  -- Map (pkg, ns) [(JDecl, CDecl)]
+    declsMaybe = M.mapWithKey (genFunctionDecl info) infoAPI  -- Map GI.Name   Maybe (JDecl, CDecl)
+    declsList  = M.map maybeToList declsMaybe                 -- Map GI.Name   [(JDecl, CDecl)]
+    decls      = M.mapKeysWith (++) makePackagePair declsList -- Map (pkg, ns) [(JDecl, CDecl)]
     jdecls     = fmap fst <$> decls
     cdecls     = fmap snd <$> decls
-    jcode      = M.mapWithKey (uncurry genFunctionJava) jdecls -- Map (pkg, ns) JCompilationUnit
+    jcode      = M.mapWithKey genFunctionJava jdecls          -- Map (pkg, ns) JCompilationUnit
     ccode      = concat cdecls
   in
     (jcode, ccode)
   where
     makePackagePair ns = (giNamespaceToJava infoPkgPrefix ns, T.unpack . GI.namespace $ ns)
+    genFunctionJava (pkg, ns) = genJavaClass pkg ns [JSyn.Public]
