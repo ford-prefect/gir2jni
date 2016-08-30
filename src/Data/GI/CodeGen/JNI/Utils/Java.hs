@@ -16,10 +16,7 @@ giNamespaceToJava :: Package -> GI.Name -> Package
 giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
 
 giNameToJava :: GI.Name -> String
-giNameToJava =
-  T.unpack . toCamelCase . GI.name
-  where
-    toCamelCase = TManip.toCamel
+giNameToJava = T.unpack . TManip.toCamel . GI.name
 
 giArgToJava :: [JSyn.Ident] -> GI.Arg -> JSyn.FormalParam
 giArgToJava prefix giArg =
