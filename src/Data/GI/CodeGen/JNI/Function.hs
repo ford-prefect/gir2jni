@@ -29,7 +29,7 @@ genFunctionJavaDecl packagePrefix giName GI.Callable{..} =
     mods    = [JSyn.Public, JSyn.Static, JSyn.Native]
     prefix  = JSyn.Ident <$> packagePrefix
     retType = giTypeToJava prefix <$> returnType
-    ident   = JSyn.Ident . giNameToJava $ giName
+    ident   = JSyn.Ident . giMethodNameToJava $ giName
     params  = giArgToJava prefix <$> args
     body    = JSyn.MethodBody Nothing
   in

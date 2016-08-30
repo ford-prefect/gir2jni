@@ -15,11 +15,14 @@ import Data.GI.CodeGen.JNI.Types
 giNamespaceToJava :: Package -> GI.Name -> Package
 giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
 
-giNameToJava :: GI.Name -> String
-giNameToJava = T.unpack . TManip.toCamel . GI.name
+giClassNameToJava :: GI.Name -> String
+giClassNameToJava = T.unpack . GI.name
+
+giMethodNameToJava :: GI.Name -> String
+giMethodNameToJava = T.unpack . TManip.toCamel . GI.name
 
 giNameToJavaFQ :: Package -> GI.Name -> FQClass
-giNameToJavaFQ pkg name = (giNamespaceToJava pkg name, giNameToJava name)
+giNameToJavaFQ pkg name = (giNamespaceToJava pkg name, giClassNameToJava name)
 
 giArgToJava :: [JSyn.Ident] -> GI.Arg -> JSyn.FormalParam
 giArgToJava prefix giArg =

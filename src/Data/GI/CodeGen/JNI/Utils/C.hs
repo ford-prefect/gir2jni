@@ -62,7 +62,7 @@ giNameToJNI :: Package -> GI.Name -> String
 giNameToJNI packagePrefix giName =
   intercalate "_" $ ["Java"]
                   ++ giNamespaceToJava packagePrefix giName
-                  ++ [T.unpack . GI.namespace $ giName, giNameToJava giName]
+                  ++ [T.unpack . GI.namespace $ giName, giMethodNameToJava giName]
 
 giArgToJNIIdent :: GI.Arg -> String
 giArgToJNIIdent GI.Arg{..} = T.unpack argCName
