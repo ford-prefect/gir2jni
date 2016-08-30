@@ -151,16 +151,8 @@ genFunctionCCall GI.Function{..} =
                     liftE $ fn # args
                   else
                     liftE $ ret <-- fn # args
-    handleErr = if fnThrows
-                then
-                  [
-                    cif err $ hBlock [
-                      -- FIXME: log the error
-                      "g_error_free"#[err]
-                    ]
-                  ]
-                else
-                  []
+    -- FIXME: log the error
+    handleErr = [ cif err $ hBlock [ "g_error_free" # [err] ] | fnThrows ]
   in
     call : handleErr
 
@@ -172,7 +164,7 @@ genFunctionCReturn Info{..} GI.Callable{..} =
   in
     case returnType of
       Nothing -> [cvoidReturn]
-      Just t  -> (genFunctionCToJNI t cIdent jIdent) :
+      Just t  -> genFunctionCToJNI t cIdent jIdent :
                  [creturn jIdent]
   where
     retCast t =
@@ -188,11 +180,7 @@ genFunctionCReturn Info{..} GI.Callable{..} =
           cifElse cVar
             (hBlock $
               (jVar <-- (star jniEnv &* "NewStringUTF") # [jniEnv, cVar]) :
-              if returnTransfer /= GI.TransferEverything
-              then
-                ["g_free" # [cVar]]
-              else
-                []
+              [ "g_free" # [cVar] | returnTransfer /= GI.TransferEverything ]
             )
             (hBlock [
               jVar <-- 0
@@ -241,8 +229,9 @@ genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
   where
     isValidFunction GI.Function{..} =
       -- FIXME: how do we deal with each of these cases?
-      isNothing fnMovedTo &&                      -- function moved?
-      (all (not . isOutArg) $ GI.args fnCallable) -- out argument(s)
+      isNothing fnMovedTo &&                    -- function moved?
+      all (not . isOutArg) (GI.args fnCallable) -- out argument(s)
+
     isOutArg GI.Arg{..} =
       -- FIXME: we ignore the out part of inout arguments
       direction == GI.DirectionOut
