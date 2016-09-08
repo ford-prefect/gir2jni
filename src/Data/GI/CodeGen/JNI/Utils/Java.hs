@@ -1,4 +1,5 @@
 -- | Utility functions to simplify Java code generation
+{-# LANGUAGE RecordWildCards #-}
 
 module Data.GI.CodeGen.JNI.Utils.Java where
 
@@ -6,6 +7,7 @@ import qualified Data.Text as T (toLower, unpack)
 import qualified Data.Text.Manipulate as TManip (toCamel)
 
 import qualified Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.Type as GIType
 
 import qualified Language.Java.Syntax as JSyn
 
@@ -24,13 +26,40 @@ giMethodNameToJava = T.unpack . TManip.toCamel . GI.name
 giNameToJavaFQ :: Package -> GI.Name -> FQClass
 giNameToJavaFQ pkg name = (giNamespaceToJava pkg name, giClassNameToJava name)
 
-giArgToJava :: [JSyn.Ident] -> GI.Arg -> JSyn.FormalParam
-giArgToJava prefix giArg =
+giTypeToJava :: Info -> GIType.Type -> JSyn.Type
+giTypeToJava info@Info{..} giType =
+  case giType of
+    (GIType.TBasicType t)       -> giBasicTypeToJava t
+    (GIType.TInterface cls ref) -> if giIsObjectType info (GI.Name cls ref)
+                                   then
+                                     JSyn.RefType . javaFQToClassRef . giNameToJavaFQ infoPkgPrefix $ GI.Name cls ref
+                                   else
+                                     JSyn.PrimType JSyn.LongT -- FIXME
+    _                           -> JSyn.PrimType JSyn.LongT -- FIXME
+
+giArgToJavaName :: GI.Arg -> JSyn.Ident
+giArgToJavaName GI.Arg{..} = JSyn.Ident . T.unpack $ argCName
+
+giArgToJavaParam :: Info -> GI.Arg -> JSyn.FormalParam
+giArgToJavaParam info giArg =
   let
-    var = JSyn.VarId . JSyn.Ident . T.unpack . GI.argCName $ giArg
-    typ = giTypeToJava prefix . GI.argType $ giArg
+    var = JSyn.VarId . giArgToJavaName $ giArg
+    typ = giTypeToJava info . GI.argType $ giArg
   in
     JSyn.FormalParam [] typ False var
+
+-- | Generate a native method member declaration
+genJavaNativeMethodDecl :: [JSyn.Modifier]    -- ^ Modifiers (other than native)
+                        -> Maybe JSyn.Type    -- ^ Return type
+                        -> JSyn.Ident         -- ^ Method name
+                        -> [JSyn.FormalParam] -- ^ Arguments
+                        -> JSyn.MemberDecl
+genJavaNativeMethodDecl mods retType ident params =
+  let
+    mods' = JSyn.Native : mods
+    body  = JSyn.MethodBody Nothing
+  in
+    JSyn.MethodDecl mods' [] retType ident params [] body
 
 -- | Generate the Java code for the given package, namespace, fields/methods
 genJavaClass :: Package              -- ^ Package

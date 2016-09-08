@@ -23,17 +23,15 @@ import Data.GI.CodeGen.JNI.Utils.Java
 import Data.GI.CodeGen.JNI.Utils.Type
 import Data.GI.CodeGen.JNI.Types
 
-genFunctionJavaDecl :: Package -> GI.Name -> GI.Callable -> JSyn.Decl
-genFunctionJavaDecl packagePrefix giName GI.Callable{..} =
+genFunctionJavaDecl :: Info -> GI.Name -> GI.Callable -> JSyn.Decl
+genFunctionJavaDecl info giName GI.Callable{..} =
   let
-    mods    = [JSyn.Public, JSyn.Static, JSyn.Native]
-    prefix  = JSyn.Ident <$> packagePrefix
-    retType = giTypeToJava prefix <$> returnType
+    mods    = [JSyn.Public, JSyn.Static]
+    retType = giTypeToJava info <$> returnType
     ident   = JSyn.Ident . giMethodNameToJava $ giName
-    params  = giArgToJava prefix <$> args
-    body    = JSyn.MethodBody Nothing
+    params  = giArgToJavaParam info <$> args
   in
-    JSyn.MemberDecl (JSyn.MethodDecl mods [] retType ident params [] body)
+    JSyn.MemberDecl $ genJavaNativeMethodDecl mods retType ident params
 
 genFunctionCArgs :: [GI.Arg] -> [Maybe CDSL.CExpr -> CDSL.CDecl]
 genFunctionCArgs args =
@@ -90,14 +88,13 @@ genErrorCDecl info GI.Function{..} =
 genArgCInitAndCleanup :: Info -> GI.Arg -> (CDSL.CStat, Maybe CDSL.CStat)
 genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
   let
-    prefix = JSyn.Ident <$> infoPkgPrefix
     jniEnv = fromString jniEnvArg
     jniArg = fromString . giArgToJNIIdent $ arg
     cVar   = fromString . giArgToCIdent $ arg
     cType  = genArgCDecl info True arg
     -- FIXME: We need to deal with ownership transfer here
     init   =
-      if giTypeToJava prefix argType == javaStringType
+      if giTypeToJava info argType == javaStringType
         then
           cifElse (jniArg /=: 0)
             (hBlock [
@@ -112,7 +109,7 @@ genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
             cVar <-- (jniArg `castTo` cType)
     -- FIXME: Do we need to deal with ownership transfer here?
     cleanup =
-      if giTypeToJava prefix argType == javaStringType
+      if giTypeToJava info argType == javaStringType
         then
           Just $ cif (jniArg /=: 0)
             (hBlock [
@@ -157,25 +154,24 @@ genFunctionCCall GI.Function{..} =
     call : handleErr
 
 genFunctionCReturn :: Info -> GI.Callable -> [CStat]
-genFunctionCReturn Info{..} GI.Callable{..} =
+genFunctionCReturn info@Info{..} GI.Callable{..} =
   let
     cIdent = fromString genReturnCIdent
     jIdent = fromString genReturnJNIIdent
   in
     case returnType of
       Nothing -> [cvoidReturn]
-      Just t  -> genFunctionCToJNI t cIdent jIdent :
+      Just t  -> genFunctionCToJNI info t cIdent jIdent :
                  [creturn jIdent]
   where
     retCast t =
       makeTypeDecl False emptyCDecl (giTypeToJNI t)
 
-    genFunctionCToJNI typ cVar jVar =
+    genFunctionCToJNI info typ cVar jVar =
       let
-        prefix = JSyn.Ident <$> infoPkgPrefix
         jniEnv = fromString jniEnvArg
       in
-        if giTypeToJava prefix typ == javaStringType
+        if giTypeToJava info typ == javaStringType
         then
           cifElse cVar
             (hBlock $
@@ -219,10 +215,10 @@ genFunctionCDecl info@Info{..} giName func@GI.Function{..} =
     export $ fun [retCType] name cargs $ block defn
 
 genFunctionDecl :: Info -> GI.Name -> GI.API -> Maybe (JSyn.Decl, CDSL.CExtDecl)
-genFunctionDecl info@Info{..} giName (GI.APIFunction func) =
+genFunctionDecl info giName (GI.APIFunction func) =
   if isValidFunction func
   then
-    Just (genFunctionJavaDecl infoPkgPrefix giName (GI.fnCallable func),
+    Just (genFunctionJavaDecl info giName (GI.fnCallable func),
           genFunctionCDecl info giName func)
   else
     Nothing

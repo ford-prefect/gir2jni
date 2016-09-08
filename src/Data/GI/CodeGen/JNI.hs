@@ -17,21 +17,27 @@ import qualified Language.Java.Pretty as JPretty
 import qualified Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
-import Data.GI.CodeGen.JNI.Function (genFunctions)
+import Data.GI.CodeGen.JNI.Function
+import Data.GI.CodeGen.JNI.Object
 
 -- | Returns a list of Java files with their names, and the C code to be written
 --   to a single file
 genJNI :: Info -> ([(String, FilePath)], String)
 genJNI info =
   let
-    (jFun, cFun) = genFunctions info
-    jPathFun     = M.mapKeys makePath jFun
-    javaCode     = map swap . M.toList . M.map JPretty.prettyPrint $ jPathFun
-    headerList   = ["jni.h", "gst/gst.h"] -- FIXME: Discover headers from GIR
-    headers      = concatMap (\h -> "#include <" ++ h ++ ">\n") headerList
-    cCode        = headers ++
-                   (TPretty.render . CDSL.pretty . CDSL.transUnit $ cFun)
+    (j, c)     = foldl mergeCode (M.empty, []) [genFunctions, genObjects]
+    jPath      = M.mapKeys makePath j
+    javaCode   = map swap . M.toList . M.map JPretty.prettyPrint $ jPath
+    headerList = ["jni.h", "gst/gst.h"] -- FIXME: Discover headers from GIR
+    headers    = concatMap (\h -> "#include <" ++ h ++ ">\n") headerList
+    cCode      = headers ++
+                 (TPretty.render . CDSL.pretty . CDSL.transUnit $ c)
   in
     (javaCode, cCode)
   where
     makePath (pkg, cls) = foldl1 (</>) (pkg ++ [cls <.> "java"])
+    mergeCode (j, c) gen =
+      let
+        (j', c') = gen info
+      in
+        (M.union j j', c ++ c')

@@ -5,7 +5,8 @@
 module Data.GI.CodeGen.JNI.Utils.Type where
 
 import Control.Applicative ((<|>))
-import qualified Data.Map as M (lookup)
+import Control.Monad (join)
+import qualified Data.Map as M (lookup, union)
 import Data.String (fromString)
 import qualified Data.Text as T (unpack)
 
@@ -19,8 +20,11 @@ import Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
 
+javaClassType :: [String] -> JSyn.ClassType
+javaClassType n = JSyn.ClassType . fmap (,[]) $ JSyn.Ident <$> n
+
 javaClassRef :: [String] -> JSyn.RefType
-javaClassRef n = JSyn.ClassRefType . JSyn.ClassType . fmap (,[]) $ JSyn.Ident <$> n
+javaClassRef = JSyn.ClassRefType . javaClassType
 
 javaStringType :: JSyn.Type
 javaStringType = JSyn.RefType . javaClassRef $  ["java", "lang", "String"]
@@ -57,12 +61,26 @@ giBasicTypeToJava typ =
     GIType.TUTF8     -> javaStringType
     GIType.TFileName -> javaStringType
 
-giTypeToJava :: [JSyn.Ident] -> GIType.Type -> JSyn.Type
-giTypeToJava prefix giType =
-  case giType of
-    (GIType.TBasicType t)       -> giBasicTypeToJava t
-    -- FIXME: Commenting out until we actually implement generation of classes for objects etc.
-    _                           -> JSyn.PrimType JSyn.LongT -- FIXME
+giIsGObject :: GI.Name -> Bool
+giIsGObject (GI.Name "GObject" "Object") = True
+giIsGObject _                            = False
+
+giIsObjectType :: Info -> GI.Name -> Bool
+giIsObjectType Info{..} name =
+  let
+    apis = M.union infoAPI infoDeps
+    api  = M.lookup name apis
+  in
+    case api of
+      Just (GI.APIObject GI.Object{..}) -> isGObjectType apis name objParent
+      _                                 -> False
+  where
+
+    isGObjectType apis _ (Just p) = isGObjectType apis p (join . fmap getObjectParent $ M.lookup p apis)
+    isGObjectType apis n Nothing  = giIsGObject n
+
+    getObjectParent (GI.APIObject GI.Object{..}) = objParent
+    getObjectParent _                            = Nothing -- This should be an error?
 
 giTypeToJNI :: GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =
