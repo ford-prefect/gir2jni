@@ -85,11 +85,12 @@ genJNIMethod :: Info
              -> GI.Name       -- ^ API method name
              -> T.Text        -- ^ Class name
              -> Bool          -- ^ Is instance method? (else class method)
+             -> Bool          -- ^ Is constructor?
              -> T.Text        -- ^ Native method name
              -> Bool          -- ^ Throws error?
              -> GI.Callable   -- ^ Corresponding GI.Callable
              -> CDSL.CExtDecl -- ^ Return C declaration + definition
-genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
+genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable =
   let
     retType  = GI.returnType callable
     retCType = case retType of
@@ -97,7 +98,7 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
                  Just typ -> CDSL.CTypeSpec . giTypeToJNI $ typ
     name    = giNameToJNI infoPkgPrefix giName cls
     cargs   = genFunctionCArgs isInstance . GI.args $ callable
-    defn    = genFunctionCDefn info symbol throws callable
+    defn    = genFunctionCDefn info isConstr symbol throws callable
   in
     export $ fun [retCType] name cargs $ block defn
   where
@@ -204,8 +205,8 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
         else
           Nothing
 
-    genFunctionCCall :: T.Text -> Bool -> GI.Callable -> [CDSL.CStat]
-    genFunctionCCall symbol throws callable =
+    genFunctionCCall :: Bool -> T.Text -> Bool -> GI.Callable -> [CDSL.CStat]
+    genFunctionCCall isConstr symbol throws callable =
       let
         fn        = fromString . T.unpack $ symbol
         err       = fromString genErrorCIdent
@@ -216,16 +217,21 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
                       Nothing
         args      = (fromString . giArgToCIdent <$> GI.args callable) ++ maybeToList errArg
         ret       = fromString genReturnCIdent
-        call      = if isNothing . GI.returnType $ callable
+        call      = fn # args
+        callExp   = if isNothing . GI.returnType $ callable
                       then
-                        liftE $ fn # args
+                        liftE call
                       else
-                        -- FIXME: sink the ref if the return type is transfer-floating
-                        liftE $ ret <-- fn # args
+                        if isConstr && GI.returnTransfer callable == GI.TransferNothing
+                        then
+                          -- This is a floating ref, sink it
+                          liftE $ ret <-- "g_object_ref_sink" # [call]
+                        else
+                          liftE $ ret <-- call
         -- FIXME: log the error
         handleErr = [ cif err $ hBlock [ "g_error_free" # [err] ] | throws ]
       in
-        call : handleErr
+        callExp : handleErr
 
     genFunctionCReturn :: Info -> GI.Callable -> [CStat]
     genFunctionCReturn info@Info{..} GI.Callable{..} =
@@ -259,8 +265,8 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
                 -- FIXME: Can't just do a simple assign every time
                 liftE $ jVar <-- cVar `castTo` retCast typ
 
-    genFunctionCDefn :: Info -> T.Text -> Bool -> GI.Callable -> [CDSL.CBlockItem]
-    genFunctionCDefn info@Info{..} symbol throws callable =
+    genFunctionCDefn :: Info -> Bool -> T.Text -> Bool -> GI.Callable -> [CDSL.CBlockItem]
+    genFunctionCDefn info@Info{..} isConstr symbol throws callable =
       let
         retDecl = genReturnCDecl info . GI.returnType $ callable
         decls   = genArgCDecl info False <$> GI.args callable
@@ -269,7 +275,7 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
         errInit = genErrorCInit throws
         init    = (fst <$> ic) ++ maybeToList errInit
         cleanup = catMaybes $ snd <$> ic
-        call    = genFunctionCCall symbol throws callable
+        call    = genFunctionCCall isConstr symbol throws callable
         ret     = genFunctionCReturn info callable
       in
         (CDSL.intoB <$> retDecl ++ decls ++ errDecl) ++

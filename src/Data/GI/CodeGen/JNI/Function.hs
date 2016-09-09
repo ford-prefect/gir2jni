@@ -37,7 +37,7 @@ genFunctionDecl info giName (GI.APIFunction func@GI.Function{..}) =
   if isValidFunction func
   then
     Just (genFunctionJavaDecl info giName (GI.fnCallable func),
-          genJNIMethod info giName (GI.namespace giName) False fnSymbol fnThrows fnCallable)
+          genJNIMethod info giName (GI.namespace giName) False False fnSymbol fnThrows fnCallable)
   else
     Nothing
   where

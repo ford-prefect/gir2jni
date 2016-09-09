@@ -83,7 +83,7 @@ genObjectConstructor info name num method =
         giName   = name { GI.name = fromString consName }
         cls      = GI.name name
       in
-        [genJNIMethod info giName cls True methodSymbol methodThrows methodCallable]
+        [genJNIMethod info giName cls True True methodSymbol methodThrows methodCallable]
 
     consName = "nativeConstructor" ++ show num
 
