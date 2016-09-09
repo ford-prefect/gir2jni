@@ -220,6 +220,7 @@ genJNIMethod info@Info{..} giName cls isInstance symbol throws callable =
                       then
                         liftE $ fn # args
                       else
+                        -- FIXME: sink the ref if the return type is transfer-floating
                         liftE $ ret <-- fn # args
         -- FIXME: log the error
         handleErr = [ cif err $ hBlock [ "g_error_free" # [err] ] | throws ]
