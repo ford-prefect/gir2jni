@@ -48,8 +48,8 @@ genNativeObjectJava Info{..} =
       in
         JSyn.MethodDecl mods [] Nothing (JSyn.Ident nativeObjectSetterIdent) [param] [] body
 
--- | NativeObject is a fake subclass of GObject that keeps a strong ref to the
---   object within the Java object, and drops the ref when the Java object
+-- | NativeObject is a fake parent class of GObject that keeps a strong ref to
+--   the object within the Java object, and drops the ref when the Java object
 --   goes out of scope
 genNativeObject :: Info -> ((FQClass, JSyn.CompilationUnit), [CDSL.CExtDecl])
 genNativeObject info@Info{..} =
