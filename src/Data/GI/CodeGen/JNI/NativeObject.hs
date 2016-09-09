@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.GI.CodeGen.JNI.NativeObject
   ( genNativeObject
@@ -6,11 +7,17 @@ module Data.GI.CodeGen.JNI.NativeObject
   , nativeObjectSetterIdent
   ) where
 
+import Data.String (fromString)
+
 import qualified Language.Java.Syntax as JSyn
 
 -- The idea is to use this qualified everywhere except when using as a DSL
 import Language.C.DSL as CDSL
 
+import qualified Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.Type as GIType
+
+import Data.GI.CodeGen.JNI.Utils.C
 import Data.GI.CodeGen.JNI.Utils.Java
 import Data.GI.CodeGen.JNI.Types
 
@@ -31,30 +38,69 @@ genNativeObject info@Info{..} =
   let
     cls   = (infoPkgPrefix, nativeObjectIdent)
     jCode = genNativeObjectJava info
+    cCode = genNativeObjectC info
   in
-    ((cls, jCode), [])
+    ((cls, jCode), cCode)
   where
+    nativeObjectDestrIdent = "nativeDestructor"
+
     genNativeObjectJava :: Info -> JSyn.CompilationUnit
     genNativeObjectJava Info{..} =
       let
-        pkg       = infoPkgPrefix
-        name      = nativeObjectIdent
-        modifiers = [JSyn.Public, JSyn.Abstract]
-        ptrIdent  = JSyn.VarId . JSyn.Ident $ nativeObjectFieldIdent
-        ptrInit   = Just. JSyn.InitExp . JSyn.Lit . JSyn.Int $ 0
-        field     = JSyn.FieldDecl [] (JSyn.PrimType JSyn.LongT) [JSyn.VarDecl ptrIdent ptrInit]
-        decls     = JSyn.MemberDecl <$> [field, nativeObjectSetterMethod]
+        modifiers   = [JSyn.Public, JSyn.Abstract]
+
+        ptrIdent    = JSyn.VarId . JSyn.Ident $ nativeObjectFieldIdent
+        ptrInit     = Just. JSyn.InitExp . JSyn.Lit . JSyn.Int $ 0
+        ptrField    = JSyn.FieldDecl [] (JSyn.PrimType JSyn.LongT) [JSyn.VarDecl ptrIdent ptrInit]
+
+        param       = JSyn.FormalParam [] (JSyn.PrimType JSyn.LongT) False ptrIdent
+        nativeDestr = genJavaNativeMethodDecl [] Nothing (JSyn.Ident nativeObjectDestrIdent) [param]
+
+        decls       = JSyn.MemberDecl <$> [ptrField, setter, nativeDestr, finalize]
       in
-        genJavaClass pkg name modifiers Nothing [] decls
+        genJavaClass infoPkgPrefix nativeObjectIdent modifiers Nothing [] decls
       where
-        nativeObjectSetterMethod =
+        thisPtr = JSyn.PrimaryFieldAccess JSyn.This . JSyn.Ident $ nativeObjectFieldIdent
+
+        setter =
           let
             mods   = [JSyn.Protected, JSyn.Final]
             ident  = JSyn.Ident "object"
             param  = JSyn.FormalParam [] (JSyn.PrimType JSyn.LongT) False (JSyn.VarId ident)
             from   = JSyn.ExpName . JSyn.Name $ [ident]
-            to     = JSyn.FieldLhs . JSyn.PrimaryFieldAccess JSyn.This . JSyn.Ident $ nativeObjectFieldIdent
+            to     = JSyn.FieldLhs thisPtr
             assign = JSyn.Assign to JSyn.EqualA from
             body   = JSyn.MethodBody . Just . JSyn.Block $ [JSyn.BlockStmt . JSyn.ExpStmt $ assign]
           in
             JSyn.MethodDecl mods [] Nothing (JSyn.Ident nativeObjectSetterIdent) [param] [] body
+
+        finalize =
+          let
+            fin   = JSyn.Ident "finalize"
+            mods  = [JSyn.Protected, javaOverrideAnnotation]
+            free  = JSyn.BlockStmt
+                  . JSyn.ExpStmt
+                  . JSyn.MethodInv
+                  . JSyn.MethodCall (JSyn.Name $ [JSyn.Ident nativeObjectDestrIdent]) $
+                                    [JSyn.FieldAccess thisPtr]
+            -- Needed for suppressing a warning, but needs additional try-catch
+            -- hoop jumping.
+            --super = JSyn.BlockStmt
+            --      . JSyn.ExpStmt
+            --      . JSyn.MethodInv
+            --      . JSyn.SuperMethodCall [] fin $ []
+            body  = JSyn.MethodBody . Just . JSyn.Block $ [free]
+          in
+            JSyn.MethodDecl mods [] Nothing fin [] [] body
+
+    genNativeObjectC :: Info -> [CDSL.CExtDecl]
+    genNativeObjectC Info{..} =
+      let
+        giName     = GI.Name "" (fromString nativeObjectDestrIdent)
+        destructor = giNameToJNI infoPkgPrefix giName (fromString nativeObjectIdent)
+      in
+        [
+          export $ fun [voidTy] destructor [long "ptr"] $ hBlock [
+            "g_object_unref" # ["ptr"]
+          ]
+        ]

@@ -21,7 +21,13 @@ import Language.C.DSL as CDSL
 import Data.GI.CodeGen.JNI.Types
 
 giNamespaceToJava :: Package -> GI.Name -> Package
-giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
+giNamespaceToJava pkg giName =
+  let
+    ns = if GI.namespace giName /= ""
+         then [T.unpack . T.toLower . GI.namespace $ giName]
+         else [] -- We might get an empty namespace (e.g. for NAtiveObject)
+  in
+    pkg ++ ns
 
 javaClassType :: [String] -> JSyn.ClassType
 javaClassType n = JSyn.ClassType . fmap (,[]) $ JSyn.Ident <$> n

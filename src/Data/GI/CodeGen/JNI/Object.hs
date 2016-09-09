@@ -137,6 +137,6 @@ genObjects info@Info{..} =
     objs      = M.mapMaybeWithKey (genObject info) apis
     objs'     = M.insert (GI.Name "" (T.pack nativeObjectIdent)) nativeObj objs
     jCode     = M.fromList . M.elems . fmap fst $ objs'
-    cCode     = concatMap snd objs
+    cCode     = concatMap snd objs'
   in
     (jCode, cCode)

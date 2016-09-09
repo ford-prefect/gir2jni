@@ -14,6 +14,9 @@ import qualified Language.Java.Syntax as JSyn
 import Data.GI.CodeGen.JNI.Utils.Type
 import Data.GI.CodeGen.JNI.Types
 
+javaOverrideAnnotation :: JSyn.Modifier
+javaOverrideAnnotation = JSyn.Annotation . JSyn.MarkerAnnotation . JSyn.Name $ [JSyn.Ident "Override"]
+
 giClassNameToJava :: GI.Name -> String
 giClassNameToJava = T.unpack . GI.name
 
