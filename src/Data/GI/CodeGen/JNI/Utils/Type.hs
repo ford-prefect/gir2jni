@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (join)
 import qualified Data.Map as M (lookup, union)
 import Data.String (fromString)
-import qualified Data.Text as T (unpack)
+import qualified Data.Text as T (toLower, unpack)
 
 import qualified Data.GI.CodeGen.API as GI
 import qualified Data.GI.CodeGen.Type as GIType
@@ -19,6 +19,9 @@ import qualified Language.Java.Syntax as JSyn
 import Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
+
+giNamespaceToJava :: Package -> GI.Name -> Package
+giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
 
 javaClassType :: [String] -> JSyn.ClassType
 javaClassType n = JSyn.ClassType . fmap (,[]) $ JSyn.Ident <$> n

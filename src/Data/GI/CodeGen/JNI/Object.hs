@@ -5,7 +5,8 @@ module Data.GI.CodeGen.JNI.Object (genObjects) where
 
 import qualified Data.Map as M
 import Data.Maybe (isJust, maybeToList)
-import qualified Data.Text as T (pack)
+import Data.String (fromString)
+import qualified Data.Text as T (pack, unpack)
 
 import qualified Language.Java.Syntax as JSyn
 
@@ -13,8 +14,10 @@ import qualified Language.Java.Syntax as JSyn
 import Language.C.DSL as CDSL
 
 import qualified Data.GI.CodeGen.API as GI
+import qualified Data.GI.CodeGen.Type as GIType
 
 import Data.GI.CodeGen.JNI.NativeObject
+import Data.GI.CodeGen.JNI.Utils.C
 import Data.GI.CodeGen.JNI.Utils.Java
 import Data.GI.CodeGen.JNI.Utils.Type
 import Data.GI.CodeGen.JNI.Types
@@ -46,7 +49,7 @@ genObjectConstructor info name num method =
   where
     genObjectConstructorJava info name GI.Method{..} =
       let
-        nativeConsIdent = JSyn.Ident $ "nativeConstructor_" ++ show num
+        nativeConsIdent = JSyn.Ident consName
         nativeConsDecl  = genJavaNativeMethodDecl [] (Just . JSyn.PrimType $ JSyn.LongT) nativeConsIdent params
 
         ident  = JSyn.Ident . giClassNameToJava $ name
@@ -72,7 +75,17 @@ genObjectConstructor info name num method =
       in
         JSyn.MemberDecl <$> [nativeConsDecl, JSyn.ConstructorDecl [JSyn.Public] [] ident params [] body]
 
-    genObjectConstructorC Info{..} name GI.Method{..} = []
+    genObjectConstructorC Info{..} name GI.Method{..} =
+      let
+        -- Declaration
+        retType  = GIType.TBasicType GIType.TLong
+        callable = methodCallable { GI.returnType = Just retType }
+        giName   = name { GI.name = fromString consName }
+        cls      = GI.name name
+      in
+        [genJNIMethod info giName cls True methodSymbol methodThrows methodCallable]
+
+    consName = "nativeConstructor" ++ show num
 
 genObject :: Info -> GI.Name -> GI.API -> Maybe ((FQClass, JSyn.CompilationUnit), [CDSL.CExtDecl])
 genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =

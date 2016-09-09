@@ -3,7 +3,7 @@
 
 module Data.GI.CodeGen.JNI.Utils.Java where
 
-import qualified Data.Text as T (toLower, unpack)
+import qualified Data.Text as T (unpack)
 import qualified Data.Text.Manipulate as TManip (toCamel)
 
 import qualified Data.GI.CodeGen.API as GI
@@ -13,9 +13,6 @@ import qualified Language.Java.Syntax as JSyn
 
 import Data.GI.CodeGen.JNI.Utils.Type
 import Data.GI.CodeGen.JNI.Types
-
-giNamespaceToJava :: Package -> GI.Name -> Package
-giNamespaceToJava pkg giName = pkg ++ [T.unpack . T.toLower . GI.namespace $ giName]
 
 giClassNameToJava :: GI.Name -> String
 giClassNameToJava = T.unpack . GI.name
