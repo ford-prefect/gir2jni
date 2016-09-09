@@ -29,8 +29,9 @@ genNativeObjectJava Info{..} =
     pkg       = infoPkgPrefix
     name      = nativeObjectIdent
     modifiers = [JSyn.Public, JSyn.Abstract]
-    objIdent  = JSyn.VarId . JSyn.Ident $ nativeObjectFieldIdent
-    field     = JSyn.FieldDecl [] (JSyn.PrimType JSyn.LongT) [JSyn.VarDecl objIdent Nothing]
+    ptrIdent  = JSyn.VarId . JSyn.Ident $ nativeObjectFieldIdent
+    ptrInit   = Just. JSyn.InitExp . JSyn.Lit . JSyn.Int $ 0
+    field     = JSyn.FieldDecl [] (JSyn.PrimType JSyn.LongT) [JSyn.VarDecl ptrIdent ptrInit]
     decls     = JSyn.MemberDecl <$> [field, nativeObjectSetterMethod]
   in
     genJavaClass pkg name modifiers Nothing [] decls
