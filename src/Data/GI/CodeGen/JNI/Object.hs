@@ -77,9 +77,7 @@ genObjectConstructor info name num method =
 
     genObjectConstructorC Info{..} name GI.Method{..} =
       let
-        -- Declaration
         retType  = GIType.TBasicType GIType.TLong
-        callable = methodCallable { GI.returnType = Just retType }
         giName   = name { GI.name = fromString consName }
         cls      = GI.name name
       in
