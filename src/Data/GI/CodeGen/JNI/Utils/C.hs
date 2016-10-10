@@ -169,28 +169,28 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
         -- FIXME: We need to deal with ownership transfer here
         init   =
           if giTypeToJava info argType == javaStringType
-            then
-              cifElse (jniArg /=: 0)
-                (hBlock [
-                  cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
-                  -- FIXME: Do an exception check and return if we have an exception
-                ])
-                (hBlock [
-                  cVar <-- 0
-                ])
-            else
-              liftE $
-                cVar <-- (jniArg `castTo` cType)
+          then
+            cifElse (jniArg /=: 0)
+              (hBlock [
+                cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
+                -- FIXME: Do an exception check and return if we have an exception
+              ])
+              (hBlock [
+                cVar <-- 0
+              ])
+          else
+            liftE $
+              cVar <-- (jniArg `castTo` cType)
         -- FIXME: Do we need to deal with ownership transfer here?
         cleanup =
           if giTypeToJava info argType == javaStringType
-            then
-              Just $ cif (jniArg /=: 0)
-                (hBlock [
-                  (star jniEnv &* "ReleaseStringUTFChars")#[jniEnv, jniArg, cVar]
-                ])
-            else
-              Nothing
+          then
+            Just $ cif (jniArg /=: 0)
+              (hBlock [
+                (star jniEnv &* "ReleaseStringUTFChars")#[jniEnv, jniArg, cVar]
+              ])
+          else
+            Nothing
       in
         (init, cleanup)
 
@@ -219,15 +219,15 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
         ret       = fromString genReturnCIdent
         call      = fn # args
         callExp   = if isNothing . GI.returnType $ callable
+                    then
+                      liftE call
+                    else
+                      if isConstr && GI.returnTransfer callable == GI.TransferNothing
                       then
-                        liftE call
+                        -- This is a floating ref, sink it
+                        liftE $ ret <-- "g_object_ref_sink" # [call]
                       else
-                        if isConstr && GI.returnTransfer callable == GI.TransferNothing
-                        then
-                          -- This is a floating ref, sink it
-                          liftE $ ret <-- "g_object_ref_sink" # [call]
-                        else
-                          liftE $ ret <-- call
+                        liftE $ ret <-- call
         -- FIXME: log the error
         handleErr = [ cif err $ hBlock [ "g_error_free" # [err] ] | throws ]
       in
@@ -261,9 +261,9 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
                 (hBlock [
                   jVar <-- 0
                 ])
-              else
-                -- FIXME: Can't just do a simple assign every time
-                liftE $ jVar <-- cVar `castTo` retCast typ
+            else
+              -- FIXME: Can't just do a simple assign every time
+              liftE $ jVar <-- cVar `castTo` retCast typ
 
     genFunctionCDefn :: Info -> Bool -> T.Text -> Bool -> GI.Callable -> [CDSL.CBlockItem]
     genFunctionCDefn info@Info{..} isConstr symbol throws callable =
