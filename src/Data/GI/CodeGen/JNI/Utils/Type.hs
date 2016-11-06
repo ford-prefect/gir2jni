@@ -41,6 +41,9 @@ javaStringType = JSyn.RefType . javaClassRef $  ["java", "lang", "String"]
 javaFQToClassRef :: FQClass -> JSyn.RefType
 javaFQToClassRef (pkg, cls) = javaClassRef (pkg ++ [cls])
 
+giNameToType :: GI.Name -> GIType.Type
+giNameToType (GI.Name ns n) = GIType.TInterface ns n
+
 -- Java doesn't have unsigned types, so we promote all unsigned types to
 -- the next wider Java signed type (except long, where we just have to hope
 -- there aren't overflows -- writing bindings is fun.)
@@ -74,9 +77,10 @@ giIsGObject :: GI.Name -> Bool
 giIsGObject (GI.Name "GObject" "Object") = True
 giIsGObject _                            = False
 
-giIsObjectType :: Info -> GI.Name -> Bool
-giIsObjectType Info{..} name =
+giIsObjectType :: Info -> GIType.Type -> Bool
+giIsObjectType Info{..} (GIType.TInterface ns n) =
   let
+    name = GI.Name ns n
     apis = M.union infoAPI infoDeps
     api  = M.lookup name apis
   in
@@ -90,6 +94,7 @@ giIsObjectType Info{..} name =
 
     getObjectParent (GI.APIObject GI.Object{..}) = objParent
     getObjectParent _                            = Nothing -- This should be an error?
+giIsObjectType Info{..} _ = False
 
 giTypeToJNI :: GIType.Type -> CDSL.CTypeSpec
 giTypeToJNI giType =

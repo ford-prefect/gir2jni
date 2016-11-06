@@ -30,7 +30,7 @@ giTypeToJava :: Info -> GIType.Type -> JSyn.Type
 giTypeToJava info@Info{..} giType =
   case giType of
     (GIType.TBasicType t)       -> giBasicTypeToJava t
-    (GIType.TInterface cls ref) -> if giIsObjectType info (GI.Name cls ref)
+    (GIType.TInterface cls ref) -> if giIsObjectType info giType
                                    then
                                      JSyn.RefType . javaFQToClassRef . giNameToJavaFQ infoPkgPrefix $ GI.Name cls ref
                                    else

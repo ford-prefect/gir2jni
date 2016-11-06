@@ -115,7 +115,7 @@ genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =
     jCode  = genJavaClass pkg cls [JSyn.Public] parent ifaces decls
     cCode  = snd cons
   in
-    if giIsObjectType info name
+    if giIsObjectType info . giNameToType $ name
     then
       Just ((fqCls, jCode), cCode)
     else
