@@ -174,3 +174,8 @@ giTypeToC info@Info{..} giType =
       GIType.TUIntPtr  -> "guintptr"
       GIType.TUTF8     -> "char"
       GIType.TFileName -> "char"
+
+giArgIsOutArg :: GI.Arg -> Bool
+giArgIsOutArg GI.Arg{..} =
+  -- FIXME: we ignore the out part of inout arguments
+  direction == GI.DirectionOut

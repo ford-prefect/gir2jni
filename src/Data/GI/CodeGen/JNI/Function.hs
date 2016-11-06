@@ -43,12 +43,8 @@ genFunctionDecl info giName (GI.APIFunction func@GI.Function{..}) =
   where
     isValidFunction GI.Function{..} =
       -- FIXME: how do we deal with each of these cases?
-      isNothing fnMovedTo &&                    -- function moved?
-      all (not . isOutArg) (GI.args fnCallable) -- out argument(s)
-
-    isOutArg GI.Arg{..} =
-      -- FIXME: we ignore the out part of inout arguments
-      direction == GI.DirectionOut
+      isNothing fnMovedTo &&                         -- function moved?
+      all (not . giArgIsOutArg) (GI.args fnCallable) -- out argument(s)
 genFunctionDecl _ _ _ = Nothing -- Ignore non-functions
 
 genFunctions :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])

@@ -4,7 +4,7 @@
 module Data.GI.CodeGen.JNI.Object (genObjects) where
 
 import qualified Data.Map as M
-import Data.Maybe (isJust, maybeToList)
+import Data.Maybe (isJust, isNothing, mapMaybe, maybeToList)
 import Data.String (fromString)
 import qualified Data.Text as T (pack, unpack)
 
@@ -85,14 +85,23 @@ genObjectConstructor info name num method =
 
     consName = "nativeConstructor" ++ show num
 
-genObjectMethod :: Info -> GI.Name -> GI.Method -> (JSyn.Decl, CDSL.CExtDecl)
+genObjectMethod :: Info -> GI.Name -> GI.Method -> Maybe (JSyn.Decl, CDSL.CExtDecl)
 genObjectMethod info giName method =
   let
     jMethod = genObjectMethodJava info giName method
     cMethod = genObjectMethodC info giName method
   in
-    (JSyn.MemberDecl jMethod, cMethod)
+    if isValidMethod method
+    then
+      Just (JSyn.MemberDecl jMethod, cMethod)
+    else
+      Nothing
   where
+    isValidMethod GI.Method{..} =
+      -- FIXME: how do we deal with each of these cases?
+      isNothing methodMovedTo &&                         -- function moved?
+      all (not . giArgIsOutArg) (GI.args methodCallable) -- out argument(s)
+
     genObjectMethodJava info giName GI.Method{..} =
       let
         retType = giTypeToJava info <$> GI.returnType methodCallable
@@ -133,7 +142,7 @@ genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =
 
     -- Methods
     giMethods = filter ((==) GI.OrdinaryMethod . GI.methodType) objMethods
-    methods   = genObjectMethod info name <$> giMethods
+    methods   = mapMaybe (genObjectMethod info name) giMethods
 
     -- FIXME: Enable after implementing interfaces
     -- ifaces = giNameToJavaFQ infoPkgPrefix <$> objInterfaces
