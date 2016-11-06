@@ -38,7 +38,7 @@ genNativeObject info@Info{..} =
   let
     cls   = (infoPkgPrefix, nativeObjectIdent)
     jCode = genNativeObjectJava info
-    cCode = genNativeObjectC info
+    cCode = genNativeObjectC info cls
   in
     ((cls, jCode), cCode)
   where
@@ -93,14 +93,38 @@ genNativeObject info@Info{..} =
           in
             JSyn.MethodDecl mods [] Nothing fin [] [] body
 
-    genNativeObjectC :: Info -> [CDSL.CExtDecl]
-    genNativeObjectC Info{..} =
+    genNativeObjectC :: Info -> FQClass -> [CDSL.CExtDecl]
+    genNativeObjectC Info{..} fqClass =
       let
         giName     = GI.Name "" (fromString nativeObjectDestrIdent)
+
+        -- jniGetObjectPointerIdent
+        env        = fromString jniEnvIdent
+        cls        = fromString jniClassIdent
+        field      = fromString jniFieldIdent
+        obj        = fromString jniInstanceIdent
+        className  = str $ jniClassName fqClass
+
         destructor = giNameToJNI infoPkgPrefix giName (fromString nativeObjectIdent)
       in
-        [
-          export $ fun [voidTy] destructor [long "ptr"] $ hBlock [
+        export <$> [
+          -- FIXME: Pepper some exception checks in here
+          fun [longTy] jniGetObjectPointerIdent [jniEnvDecl, jniInstanceDecl] $ functionBlock
+            [
+              uninit $ jniClassDecl,
+              uninit $ jniFieldDecl,
+              uninit $ long "ret"
+            ] [
+              cls   <-- (star env &* "FindClass")#[env, className],
+              field <-- (star env &* "GetFieldID")#[env, cls, str nativeObjectFieldIdent, str "J"],
+              "ret" <-- (star env &* "GetLongField")#[env, obj, field]
+            ] [
+              creturn "ret"
+            ],
+
+          fun [voidTy] destructor [long "ptr"] $ hBlock [
             "g_object_unref" # ["ptr"]
           ]
         ]
+      where
+        functionBlock decls stats ret = block $ (intoB <$> decls) ++ (intoB <$> stats) ++ (intoB <$> ret)

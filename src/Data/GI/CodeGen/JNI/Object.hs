@@ -85,6 +85,28 @@ genObjectConstructor info name num method =
 
     consName = "nativeConstructor" ++ show num
 
+genObjectMethod :: Info -> GI.Name -> GI.Method -> (JSyn.Decl, CDSL.CExtDecl)
+genObjectMethod info giName method =
+  let
+    jMethod = genObjectMethodJava info giName method
+    cMethod = genObjectMethodC info giName method
+  in
+    (JSyn.MemberDecl jMethod, cMethod)
+  where
+    genObjectMethodJava info giName GI.Method{..} =
+      let
+        retType = giTypeToJava info <$> GI.returnType methodCallable
+        ident   = JSyn.Ident . giMethodNameToJava $ methodName
+        params  = giArgToJavaParam info <$> GI.args methodCallable
+      in
+        genJavaNativeMethodDecl [JSyn.Public] retType ident params
+
+    genObjectMethodC info giName GI.Method{..} =
+      let
+        cls      = GI.name giName
+      in
+        genJNIMethod info methodName cls True False methodSymbol methodThrows methodCallable
+
 genObject :: Info -> GI.Name -> GI.API -> Maybe ((FQClass, JSyn.CompilationUnit), [CDSL.CExtDecl])
 genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =
   let
@@ -97,6 +119,7 @@ genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =
              else
                giNameToJavaFQ infoPkgPrefix <$> objParent
 
+    -- Constructors
     conss  = zip [1..] $ filter ((==) GI.Constructor . GI.methodType) objMethods -- "Indexed" list of constructors
     conss' = fmap (uncurry $ genObjectConstructor info name) conss
     cons   = foldl concatTuple ([], []) conss'
@@ -108,12 +131,16 @@ genObject info@Info{..} name (GI.APIObject obj@GI.Object{..}) =
                 -- We must have an empty constructor for subclass constructors to work
                 Just $ genEmptyConstructor info name
 
+    -- Methods
+    giMethods = filter ((==) GI.OrdinaryMethod . GI.methodType) objMethods
+    methods   = genObjectMethod info name <$> giMethods
+
     -- FIXME: Enable after implementing interfaces
     -- ifaces = giNameToJavaFQ infoPkgPrefix <$> objInterfaces
     ifaces = []
-    decls  = empty ++ fst cons
+    decls  = empty ++ fst cons ++ (fst <$> methods)
     jCode  = genJavaClass pkg cls [JSyn.Public] parent ifaces decls
-    cCode  = snd cons
+    cCode  = snd cons ++ (snd <$> methods)
   in
     if giIsObjectType info . giNameToType $ name
     then

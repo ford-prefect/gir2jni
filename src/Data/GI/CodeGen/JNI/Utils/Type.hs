@@ -73,6 +73,10 @@ giBasicTypeToJava typ =
     GIType.TUTF8     -> javaStringType
     GIType.TFileName -> javaStringType
 
+giIsStringType :: GIType.Type -> Bool
+giIsStringType (GIType.TBasicType t) = giBasicTypeToJava t == javaStringType
+giIsStringType _                     = False
+
 giIsGObject :: GI.Name -> Bool
 giIsGObject (GI.Name "GObject" "Object") = True
 giIsGObject _                            = False

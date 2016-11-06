@@ -20,6 +20,9 @@ import Data.GI.CodeGen.JNI.Types
 import Data.GI.CodeGen.JNI.Utils.Java
 import Data.GI.CodeGen.JNI.Utils.Type
 
+jniGetObjectPointerIdent :: String
+jniGetObjectPointerIdent = "gobject_from_jobject"
+
 jniTypeDefDecl :: String -> String -> Bool -> Maybe CDSL.CExpr -> CDSL.CDecl
 jniTypeDefDecl typ name isPtr =
   let
@@ -46,17 +49,29 @@ jniNull :: CDSL.CExpr
 jniNull =
     0 `castTo` typePtrDecl voidSpec
 
-jniEnvArg :: String
-jniEnvArg = "env"
+jniEnvIdent :: String
+jniEnvIdent = "env"
 
 jniEnvDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniEnvDecl = jniTypeDefDecl "JNIEnv" jniEnvArg True
+jniEnvDecl = jniTypeDefDecl "JNIEnv" jniEnvIdent True
+
+jniClassIdent :: String
+jniClassIdent = "clazz"
 
 jniClassDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniClassDecl = jniTypeDefDecl "jclass" "clazz" False
+jniClassDecl = jniTypeDefDecl "jclass" jniClassIdent False
+
+jniInstanceIdent :: String
+jniInstanceIdent = "thiz"
 
 jniInstanceDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
-jniInstanceDecl = jniTypeDefDecl "jobject" "thiz" False
+jniInstanceDecl = jniTypeDefDecl "jobject" jniInstanceIdent False
+
+jniFieldIdent :: String
+jniFieldIdent = "field"
+
+jniFieldDecl :: Maybe CDSL.CExpr -> CDSL.CDecl
+jniFieldDecl = jniTypeDefDecl "jfieldID" jniFieldIdent False
 
 giCVarPrefix :: String
 giCVarPrefix = "c_"
@@ -64,11 +79,17 @@ giCVarPrefix = "c_"
 giArgToCIdent :: GI.Arg -> String
 giArgToCIdent GI.Arg{..} = giCVarPrefix ++ T.unpack argCName
 
+giInstanceCIdent :: String
+giInstanceCIdent = giCVarPrefix ++ jniInstanceIdent
+
 giNameToJNI :: Package -> GI.Name -> T.Text -> String
 giNameToJNI packagePrefix giName cls =
   intercalate "_" $ ["Java"]
                   ++ giNamespaceToJava packagePrefix giName
                   ++ [T.unpack cls, giMethodNameToJava giName]
+
+jniClassName :: FQClass -> String
+jniClassName (pkg, cls) = intercalate "/" (pkg ++ [cls])
 
 giArgToJNIIdent :: GI.Arg -> String
 giArgToJNIIdent GI.Arg{..} = T.unpack argCName
@@ -97,11 +118,26 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
                  Nothing  -> CDSL.voidTy
                  Just typ -> CDSL.CTypeSpec . giTypeToJNI $ typ
     name    = giNameToJNI infoPkgPrefix giName cls
+    args    = if isInstance && not isConstr
+              then genFunctionInstanceArg cls giName : GI.args callable
+              else GI.args callable
     cargs   = genFunctionCArgs isInstance . GI.args $ callable
-    defn    = genFunctionCDefn info isConstr symbol throws callable
+    defn    = genFunctionCDefn info isConstr symbol throws callable{GI.args = args}
   in
     export $ fun [retCType] name cargs $ block defn
   where
+    genFunctionInstanceArg :: T.Text -> GI.Name -> GI.Arg
+    genFunctionInstanceArg cls (GI.Name ns _) =
+      GI.Arg (fromString jniInstanceIdent)
+             (GIType.TInterface ns cls)
+             GI.DirectionIn
+             False
+             GI.ScopeTypeInvalid
+             (-1)
+             (-1)
+             False
+             GI.TransferNothing
+
     genFunctionCArgs :: Bool -> [GI.Arg] -> [Maybe CDSL.CExpr -> CDSL.CDecl]
     genFunctionCArgs isInstance args =
       let
@@ -162,37 +198,42 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
     genArgCInitAndCleanup :: Info -> GI.Arg -> (CDSL.CStat, Maybe CDSL.CStat)
     genArgCInitAndCleanup info@Info{..} arg@GI.Arg{..} =
       let
-        jniEnv = fromString jniEnvArg
+        jniEnv = fromString jniEnvIdent
         jniArg = fromString . giArgToJNIIdent $ arg
         cVar   = fromString . giArgToCIdent $ arg
         cType  = genArgCDecl info True arg
-        -- FIXME: We need to deal with ownership transfer here
-        init   =
-          if giTypeToJava info argType == javaStringType
+        init   = liftE $
+          if giIsStringType argType
           then
-            cifElse (jniArg /=: 0)
-              (hBlock [
-                cVar <-- (star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0]
-                -- FIXME: Do an exception check and return if we have an exception
-              ])
-              (hBlock [
-                cVar <-- 0
-              ])
+            cVar `transferAssign` ((star jniEnv &* "GetStringUTFChars")#[jniEnv, jniArg, 0])
+            -- FIXME: Do an exception check and assert if we have an exception
+          else if giIsObjectType info argType
+          then
+            cVar <-- (fromString jniGetObjectPointerIdent)#[jniEnv, jniArg] `castTo` cType
           else
-            liftE $
-              cVar <-- (jniArg `castTo` cType)
-        -- FIXME: Do we need to deal with ownership transfer here?
+            cVar `transferAssign` (jniArg `castTo` cType)
         cleanup =
-          if giTypeToJava info argType == javaStringType
+          if giIsStringType argType
           then
-            Just $ cif (jniArg /=: 0)
-              (hBlock [
-                (star jniEnv &* "ReleaseStringUTFChars")#[jniEnv, jniArg, cVar]
-              ])
+            Just . liftE $
+              (star jniEnv &* "ReleaseStringUTFChars")#[jniEnv, jniArg, cVar]
           else
             Nothing
       in
         (init, cleanup)
+      where
+        transferAssign var exp =
+          case transfer of
+            GI.TransferNothing    -> var <-- exp
+            GI.TransferContainer  -> var <-- exp -- FIXME: what do we do here?
+            GI.TransferEverything -> if giIsStringType argType
+                                     then
+                                       var <-- "g_strdup"#[exp]
+                                     else if giIsObjectType info argType
+                                     then
+                                       var <-- "g_object_ref"#[exp]
+                                     else
+                                       var <-- exp
 
     genErrorCInit :: Bool -> Maybe CDSL.CStat
     genErrorCInit throws =
@@ -249,9 +290,9 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
 
         genFunctionCToJNI info typ cVar jVar =
           let
-            jniEnv = fromString jniEnvArg
+            jniEnv = fromString jniEnvIdent
           in
-            if giTypeToJava info typ == javaStringType
+            if giIsStringType typ
             then
               cifElse cVar
                 (hBlock $
