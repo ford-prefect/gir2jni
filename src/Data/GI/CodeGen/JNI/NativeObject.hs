@@ -7,6 +7,7 @@ module Data.GI.CodeGen.JNI.NativeObject
   , nativeObjectSetterIdent
   ) where
 
+import qualified Data.Map as M
 import Data.String (fromString)
 
 import qualified Language.Java.Syntax as JSyn
@@ -33,14 +34,14 @@ nativeObjectSetterIdent = "_setPointer"
 -- | NativeObject is a fake parent class of GObject that keeps a strong ref to
 --   the object within the Java object, and drops the ref when the Java object
 --   goes out of scope
-genNativeObject :: Info -> ((FQClass, JSyn.CompilationUnit), [CDSL.CExtDecl])
+genNativeObject :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genNativeObject info@Info{..} =
   let
     cls   = (infoPkgPrefix, nativeObjectIdent)
     jCode = genNativeObjectJava info
     cCode = genNativeObjectC info cls
   in
-    ((cls, jCode), cCode)
+    ((M.insert cls jCode M.empty), cCode)
   where
     nativeObjectDestrIdent = "nativeDestructor"
 

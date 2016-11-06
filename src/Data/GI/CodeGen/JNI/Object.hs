@@ -166,11 +166,9 @@ genObjects :: Info -> (M.Map FQClass JSyn.CompilationUnit, [CDSL.CExtDecl])
 genObjects info@Info{..} =
   let
     apis      = M.union infoAPI infoDeps
-    nativeObj = genNativeObject info
     -- Map GI.Name ((FQClass, JSyn.CompilationUnit), [CDSL.CExtDecl])
     objs      = M.mapMaybeWithKey (genObject info) apis
-    objs'     = M.insert (GI.Name "" (T.pack nativeObjectIdent)) nativeObj objs
-    jCode     = M.fromList . M.elems . fmap fst $ objs'
-    cCode     = concatMap snd objs'
+    jCode     = M.fromList . M.elems . fmap fst $ objs
+    cCode     = concatMap snd objs
   in
     (jCode, cCode)

@@ -17,6 +17,7 @@ import qualified Language.Java.Pretty as JPretty
 import qualified Language.C.DSL as CDSL
 
 import Data.GI.CodeGen.JNI.Types
+import Data.GI.CodeGen.JNI.NativeObject
 import Data.GI.CodeGen.JNI.Function
 import Data.GI.CodeGen.JNI.Object
 
@@ -25,7 +26,7 @@ import Data.GI.CodeGen.JNI.Object
 genJNI :: Info -> ([(String, FilePath)], String)
 genJNI info =
   let
-    (j, c)     = foldl mergeCode (M.empty, []) [genFunctions, genObjects]
+    (j, c)     = foldl mergeCode (M.empty, []) [genNativeObject, genFunctions, genObjects]
     jPath      = M.mapKeys makePath j
     javaCode   = map swap . M.toList . M.map JPretty.prettyPrint $ jPath
     headerList = ["jni.h", "gst/gst.h"] -- FIXME: Discover headers from GIR
