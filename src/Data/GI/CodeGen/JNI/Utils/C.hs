@@ -94,10 +94,10 @@ jniClassName (pkg, cls) = intercalate "/" (pkg ++ [cls])
 giArgToJNIIdent :: GI.Arg -> String
 giArgToJNIIdent GI.Arg{..} = T.unpack argCName
 
-giArgToJNI :: GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
-giArgToJNI arg@GI.Arg{..} =
+giArgToJNI :: Info -> GI.Arg -> (Maybe CDSL.CExpr -> CDSL.CDecl)
+giArgToJNI info arg@GI.Arg{..} =
   let
-    typ  = CDSL.CTypeSpec . giTypeToJNI $ argType
+    typ  = CDSL.CTypeSpec . giTypeToJNI info $ argType
     name = fromString . giArgToJNIIdent $ arg
   in
     CDSL.decl typ name
@@ -116,7 +116,7 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
     retType  = GI.returnType callable
     retCType = case retType of
                  Nothing  -> CDSL.voidTy
-                 Just typ -> CDSL.CTypeSpec . giTypeToJNI $ typ
+                 Just typ -> CDSL.CTypeSpec . giTypeToJNI info $ typ
     name    = giNameToJNI infoPkgPrefix giName cls
     args    = if isInstance && not isConstr
               then genFunctionInstanceArg cls giName : GI.args callable
@@ -145,7 +145,7 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
                  then jniInstanceDecl
                  else jniClassDecl
       in
-        jniEnvDecl : second : (giArgToJNI <$> args)
+        jniEnvDecl : second : (giArgToJNI info <$> args)
 
     genReturnCIdent :: String
     genReturnCIdent = giCVarPrefix ++ "_ret"
@@ -177,7 +177,7 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
         genReturnCDecl' info t =
           let
             (cType, isPtr) = giTypeToC info t
-            jType          = giTypeToJNI t
+            jType          = giTypeToJNI info t
             cIdent         = fromString genReturnCIdent
             jIdent         = fromString genReturnJNIIdent
           in
@@ -286,7 +286,7 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
                      [creturn jIdent]
       where
         retCast t =
-          makeTypeDecl False emptyCDecl (giTypeToJNI t)
+          makeTypeDecl False emptyCDecl (giTypeToJNI info t)
 
         genFunctionCToJNI info typ cVar jVar =
           let

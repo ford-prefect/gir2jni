@@ -100,12 +100,15 @@ giIsObjectType Info{..} (GIType.TInterface ns n) =
     getObjectParent _                            = Nothing -- This should be an error?
 giIsObjectType Info{..} _ = False
 
-giTypeToJNI :: GIType.Type -> CDSL.CTypeSpec
-giTypeToJNI giType =
+giTypeToJNI :: Info -> GIType.Type -> CDSL.CTypeSpec
+giTypeToJNI info giType =
   case giType of
-    (GIType.TBasicType t) -> CDSL.ty . fromString . giBasicTypeToJNI $ t
-    -- FIXME: all the other ttypes
-    _                     -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
+    (GIType.TBasicType t)       -> CDSL.ty . fromString . giBasicTypeToJNI $ t
+    (GIType.TInterface cls ref) -> if giIsObjectType info giType
+                                   then CDSL.ty "jobject"
+                                   else CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
+    -- FIXME: all the other types
+    _                           -> CDSL.ty . fromString . giBasicTypeToJNI $ GIType.TLong
   where
     giBasicTypeToJNI typ = case giBasicTypeToJava typ of
       (JSyn.PrimType JSyn.BooleanT) -> "jboolean"
