@@ -209,7 +209,7 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
             -- FIXME: Do an exception check and assert if we have an exception
           else if giIsObjectType info argType
           then
-            cVar <-- (fromString jniGetObjectPointerIdent)#[jniEnv, jniArg] `castTo` cType
+            cVar <-- fromString jniGetObjectPointerIdent#[jniEnv, jniArg] `castTo` cType
           else
             cVar `transferAssign` (jniArg `castTo` cType)
         cleanup =
@@ -224,16 +224,12 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
       where
         transferAssign var exp =
           case transfer of
-            GI.TransferNothing    -> var <-- exp
-            GI.TransferContainer  -> var <-- exp -- FIXME: what do we do here?
-            GI.TransferEverything -> if giIsStringType argType
-                                     then
-                                       var <-- "g_strdup"#[exp]
-                                     else if giIsObjectType info argType
-                                     then
-                                       var <-- "g_object_ref"#[exp]
-                                     else
-                                       var <-- exp
+            GI.TransferNothing              -> var <-- exp
+            GI.TransferContainer            -> var <-- exp -- FIXME: what do we do here?
+            GI.TransferEverything
+              | giIsStringType argType      -> var <-- "g_strdup"#[exp]
+              | giIsObjectType info argType -> var <-- "g_object_ref"#[exp]
+              | otherwise                   -> var <-- exp
 
     genErrorCInit :: Bool -> Maybe CDSL.CStat
     genErrorCInit throws =
@@ -259,16 +255,12 @@ genJNIMethod info@Info{..} giName cls isInstance isConstr symbol throws callable
         args      = (fromString . giArgToCIdent <$> GI.args callable) ++ maybeToList errArg
         ret       = fromString genReturnCIdent
         call      = fn # args
-        callExp   = if isNothing . GI.returnType $ callable
-                    then
-                      liftE call
-                    else
-                      if isConstr && GI.returnTransfer callable == GI.TransferNothing
-                      then
-                        -- This is a floating ref, sink it
-                        liftE $ ret <-- "g_object_ref_sink" # [call]
-                      else
-                        liftE $ ret <-- call
+        callExp
+          | isNothing . GI.returnType $ callable             = liftE call
+          -- This is a floating ref, sink it
+          | isConstr &&
+            GI.returnTransfer callable == GI.TransferNothing = liftE $ ret <-- "g_object_ref_sink" # [call]
+          | otherwise                                        = liftE $ ret <-- call
         -- FIXME: log the error
         handleErr = [ cif err $ hBlock [ "g_error_free" # [err] ] | throws ]
       in

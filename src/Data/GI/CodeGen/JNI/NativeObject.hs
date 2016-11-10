@@ -41,7 +41,7 @@ genNativeObject info@Info{..} =
     jCode = genNativeObjectJava info
     cCode = genNativeObjectC info cls
   in
-    ((M.insert cls jCode M.empty), cCode)
+    (M.insert cls jCode M.empty, cCode)
   where
     nativeObjectDestrIdent = "nativeDestructor"
 
@@ -82,7 +82,7 @@ genNativeObject info@Info{..} =
             free  = JSyn.BlockStmt
                   . JSyn.ExpStmt
                   . JSyn.MethodInv
-                  . JSyn.MethodCall (JSyn.Name $ [JSyn.Ident nativeObjectDestrIdent]) $
+                  . JSyn.MethodCall (JSyn.Name [JSyn.Ident nativeObjectDestrIdent]) $
                                     [JSyn.FieldAccess thisPtr]
             -- Needed for suppressing a warning, but needs additional try-catch
             -- hoop jumping.
@@ -112,8 +112,8 @@ genNativeObject info@Info{..} =
           -- FIXME: Pepper some exception checks in here
           fun [longTy] jniGetObjectPointerIdent [jniEnvDecl, jniInstanceDecl] $ functionBlock
             [
-              uninit $ jniClassDecl,
-              uninit $ jniFieldDecl,
+              uninit jniClassDecl,
+              uninit jniFieldDecl,
               uninit $ long "ret"
             ] [
               cls   <-- (star env &* "FindClass")#[env, className],
