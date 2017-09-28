@@ -3,7 +3,7 @@ version:             0.1.0.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
 homepage:            https://github.com/ford-prefect/gir2jni#readme
-license:             BSD3
+license:             LGPL-2.1
 license-file:        LICENSE
 author:              Arun Raghavan
 maintainer:          arun@arunraghavan.net
